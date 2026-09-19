@@ -4,20 +4,48 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Team4Controller;
 use App\Http\Controllers\IntegrationController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\WarehouseController;
+use App\Http\Controllers\LocationController;
 
 Route::prefix('equipo4')->group(function () {
     Route::get('/', [Team4Controller::class, 'dashboard']);
 
+    // Productos
     Route::get('/productos', [ProductController::class, 'index']);
     Route::post('/productos', [ProductController::class, 'store']);
     Route::put('/productos/{id}', [ProductController::class, 'update']);
     Route::delete('/productos/{id}', [ProductController::class, 'destroy']);
 
+    // Proveedores
+    Route::get('/proveedores', [SupplierController::class, 'index']);
+    Route::post('/proveedores', [SupplierController::class, 'store']);
+    Route::put('/proveedores/{id}', [SupplierController::class, 'update']);
+    Route::delete('/proveedores/{id}', [SupplierController::class, 'destroy']);
+
+    // Almacenes
+    Route::get('/almacenes', [WarehouseController::class, 'index']);
+    Route::post('/almacenes', [WarehouseController::class, 'store']);
+    Route::put('/almacenes/{id}', [WarehouseController::class, 'update']);
+    Route::delete('/almacenes/{id}', [WarehouseController::class, 'destroy']);
+
+    // Ubicaciones
+    Route::post('/ubicaciones', [LocationController::class, 'store']);
+    Route::put('/ubicaciones/{id}', [LocationController::class, 'update']);
+    Route::delete('/ubicaciones/{id}', [LocationController::class, 'destroy']);
+
+    // Módulos pendientes (vistas estáticas por ahora)
     $pages = [
-        'inventario' => 'Inventario', 'almacenes' => 'Almacenes',
-        'kardex' => 'Kardex', 'proveedores' => 'Proveedores', 'compras' => 'Compras',
-        'recepciones' => 'Recepciones', 'devoluciones' => 'Devoluciones', 'costos' => 'Costos', 'reservas' => 'Reservas',
-        'alertas' => 'Alertas', 'conteos' => 'Conteos', 'souvenirs' => 'Souvenirs'
+        'kardex' => 'Kardex',
+        'compras' => 'Compras',
+        'recepciones' => 'Recepciones',
+        'devoluciones' => 'Devoluciones',
+        'costos' => 'Costos',
+        'reservas' => 'Reservas',
+        'alertas' => 'Alertas',
+        'conteos' => 'Conteos',
+        'souvenirs' => 'Souvenirs',
+        'inventario' => 'Inventario',
     ];
     foreach ($pages as $uri => $page) {
         Route::get('/' . $uri, fn() => app(Team4Controller::class)->page($page));
