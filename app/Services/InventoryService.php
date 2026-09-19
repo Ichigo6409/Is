@@ -1,44 +1,167 @@
 <?php
+
 namespace App\Services;
 
 use App\Models\Inventory;
 use App\Models\StockMovement;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use MongoDB\Operation\FindOneAndUpdate;
 
 class InventoryService
 {
     public function changeStock(array $data): Inventory
     {
+        // Corrección D: se valida el negocio antes de tocar el inventario para
+        // evitar escribir movimientos o existencias asociadas a un business_id
+        // inválido o inexistente.
+        app(BusinessService::class)->validate((string) $data['business_id']);
+
         $qty = (int) $data['quantity'];
-        if ($qty === 0) throw new \InvalidArgumentException('La cantidad no puede ser cero.');
 
-        $inventory = Inventory::firstOrNew([
-            'business_id' => $data['business_id'],
-            'product_id' => $data['product_id'],
-            'variant_id' => $data['variant_id'] ?? null,
-            'location_id' => $data['location_id'],
-        ]);
+        if ($qty === 0) {
+            throw new \InvalidArgumentException('La cantidad no puede ser cero.');
+        }
 
-        $current = (int) ($inventory->on_hand ?? 0);
-        $new = $current + $qty;
-        if ($new < 0) throw new \DomainException('Existencia insuficiente.');
+        // Corrección A: el Kardex (stock_movements) es el ledger de inventario.
+        // Sin 'type' los reportes no pueden distinguir entre venta, recepción,
+        // ajuste o transferencia.
+        $allowedTypes = ['RECEIPT', 'SALE', 'RETURN_IN', 'RETURN_OUT',
+                         'ADJUSTMENT', 'TRANSFER_IN', 'TRANSFER_OUT',
+                         'QUARANTINE', 'SHRINKAGE'];
+        if (empty($data['type']) || !in_array($data['type'], $allowedTypes, true)) {
+            throw new \InvalidArgumentException(
+                'El tipo de movimiento es obligatorio y debe ser uno de: '
+                . implode(', ', $allowedTypes)
+            );
+        }
 
-        $reserved = (int) ($inventory->reserved ?? 0);
-        if ($reserved > $new) throw new \DomainException('La reserva excede la existencia.');
+        $businessId = (string) $data['business_id'];
+        $productId = (string) $data['product_id'];
+        $variantId = array_key_exists('variant_id', $data) && $data['variant_id'] !== null
+            ? (string) $data['variant_id']
+            : null;
+        $locationId = (string) $data['location_id'];
 
-        $inventory->on_hand = $new;
-        $inventory->reserved = $reserved;
-        $inventory->available = $new - $reserved;
-        $inventory->status = $inventory->available > 0 ? 'AVAILABLE' : 'OUT_OF_STOCK';
-        $inventory->save();
+        $filter = [
+            'business_id' => $businessId,
+            'product_id' => $productId,
+            'variant_id' => $variantId,
+            'location_id' => $locationId,
+        ];
 
-        StockMovement::create([
+        if ($qty < 0) {
+            $requestedOut = abs($qty);
+
+            $filter['$expr'] = [
+                '$and' => [
+                    ['$gte' => ['$on_hand', $requestedOut]],
+                    [
+                        '$gte' => [
+                            ['$subtract' => ['$on_hand', $requestedOut]],
+                            '$reserved',
+                        ],
+                    ],
+                ],
+            ];
+        }
+
+        $collection = DB::connection('mongodb')->getCollection('inventories');
+
+        $updated = $collection->findOneAndUpdate(
+            $filter,
+            [
+                '$inc' => [
+                    'on_hand' => $qty,
+                    'available' => $qty,
+                ],
+                '$set' => [
+                    'updated_at' => now()->toDateTime(),
+                    'status' => $qty > 0 ? 'AVAILABLE' : 'OUT_OF_STOCK',
+                ],
+                '$setOnInsert' => [
+                    'created_at' => now()->toDateTime(),
+                    'reserved' => 0,
+                ],
+            ],
+            [
+                'returnDocument' => FindOneAndUpdate::RETURN_DOCUMENT_AFTER,
+                'upsert' => $qty > 0,
+            ]
+        );
+
+        if ($updated === null) {
+            throw new \DomainException(
+                $qty < 0
+                    ? 'Existencia insuficiente para realizar la salida.'
+                    : 'No fue posible actualizar el inventario.'
+            );
+        }
+
+        $updatedArray = (array) $updated;
+        $inventoryId = $updatedArray['_id'] ?? null;
+
+        if ($inventoryId === null) {
+            throw new \RuntimeException('MongoDB no devolvió el identificador del inventario.');
+        }
+
+        $movementData = [
             ...$data,
+            'business_id' => $businessId,
+            'product_id' => $productId,
+            'variant_id' => $variantId,
+            'location_id' => $locationId,
             'quantity' => $qty,
             'correlation_id' => (string) Str::uuid(),
-        ]);
+        ];
 
-        return $inventory;
+        try {
+            StockMovement::create($movementData);
+        } catch (\Throwable $movementException) {
+            try {
+                $collection->findOneAndUpdate(
+                    ['_id' => $inventoryId],
+                    [
+                        '$inc' => [
+                            'on_hand' => -$qty,
+                            'available' => -$qty,
+                        ],
+                        '$set' => [
+                            'updated_at' => now()->toDateTime(),
+                        ],
+                    ]
+                );
+            } catch (\Throwable $compensationException) {
+                Log::critical('Falló la compensación de inventario después de un error de Kardex.', [
+                    'inventory_id' => (string) $inventoryId,
+                    'correlation_id' => $movementData['correlation_id'],
+                    'quantity' => $qty,
+                    'movement_error' => $movementException->getMessage(),
+                    'compensation_error' => $compensationException->getMessage(),
+                ]);
+
+                throw new \RuntimeException(
+                    'No fue posible registrar el movimiento ni compensar el inventario.',
+                    0,
+                    $compensationException
+                );
+            }
+
+            Log::error('Movimiento de inventario falló y el cambio fue compensado.', [
+                'inventory_id' => (string) $inventoryId,
+                'correlation_id' => $movementData['correlation_id'],
+                'quantity' => $qty,
+                'movement_error' => $movementException->getMessage(),
+            ]);
+
+            throw new \RuntimeException(
+                'No fue posible registrar el movimiento de inventario.',
+                0,
+                $movementException
+            );
+        }
+
+        return Inventory::where('_id', $inventoryId)->firstOrFail();
     }
 }

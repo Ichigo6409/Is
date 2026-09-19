@@ -1,23 +1,61 @@
 <script setup>
-import { ref } from 'vue'
-defineProps({ title:String, subtitle:String, kpis:{type:Array,default:()=>[]}, columns:{type:Array,default:()=>[]}, rows:{type:Array,default:()=>[]} })
+import { ref, computed } from 'vue'
+
+const props = defineProps({
+  title: { type: String, required: true },
+  subtitle: { type: String, default: '' },
+  columns: { type: Array, required: true },
+  rows: { type: Array, default: () => [] }
+})
+
 const search = ref('')
+
+const filteredRows = computed(() => {
+  if (!search.value) return props.rows
+  const q = search.value.toLowerCase()
+  return props.rows.filter(r =>
+    Object.values(r).some(v => String(v ?? '').toLowerCase().includes(q))
+  )
+})
 </script>
+
 <template>
-  <section class="cd-module">
-    <div class="cd-module-head">
-      <div><h1>{{ title }}</h1><p>{{ subtitle }}</p></div>
-      <div class="cd-actions"><input v-model="search" placeholder="Buscar..." /><button class="cd-btn">Nuevo</button></div>
+  <section class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold text-[#00338D]">{{ title }}</h1>
+        <p class="mt-1 text-sm text-slate-500">{{ subtitle }}</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <input v-model="search" placeholder="Buscar..." class="px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white focus:border-[#0284C7] focus:ring-[#0284C7]" />
+        <slot name="toolbar">
+          <button class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">Nuevo</button>
+        </slot>
+      </div>
     </div>
-    <div class="cd-kpis">
-      <div v-for="k in kpis" :key="k.label" class="cd-card"><span>{{ k.label }}</span><strong>{{ k.value }}</strong></div>
-    </div>
-    <div class="cd-card cd-table-card">
-      <div class="cd-table-title">Información</div>
-      <div class="cd-table-wrap">
-        <table><thead><tr><th v-for="c in columns" :key="c">{{ c }}</th></tr></thead>
-        <tbody><tr v-for="(r,i) in rows" :key="i"><td v-for="c in columns" :key="c">{{ r[c] ?? '—' }}</td></tr>
-        <tr v-if="!rows.length"><td :colspan="columns.length || 1">Sin registros para mostrar.</td></tr></tbody></table>
+
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div class="border-b border-slate-200 px-6 py-4 font-semibold text-[#00338D] text-sm uppercase tracking-wide">Información</div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+          <thead class="bg-slate-50 text-xs uppercase text-slate-600">
+            <tr>
+              <th v-for="c in columns" :key="c" class="px-6 py-3 font-semibold">{{ c }}</th>
+              <th v-if="$slots.actions" class="px-6 py-3 font-semibold text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr v-for="(r, i) in filteredRows" :key="r._id || i" class="hover:bg-slate-50 transition">
+              <td v-for="c in columns" :key="c" class="px-6 py-4 text-slate-700">{{ r[c] ?? '—' }}</td>
+              <td v-if="$slots.actions" class="px-6 py-4 text-right whitespace-nowrap">
+                <slot name="actions" :row="r" :index="i" />
+              </td>
+            </tr>
+            <tr v-if="!filteredRows.length">
+              <td :colspan="columns.length + ($slots.actions ? 1 : 0)" class="px-6 py-8 text-center text-slate-500">Sin registros para mostrar.</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </section>
