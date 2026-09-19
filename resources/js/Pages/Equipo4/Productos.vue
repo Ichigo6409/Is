@@ -6,7 +6,9 @@ import Team4Module from '../../Components/Team4Module.vue'
 
 const props = defineProps({
   products: { type: Array, default: () => [] },
-  categories: { type: Array, default: () => [] }
+  categories: { type: Array, default: () => [] },
+  pagination: { type: Object, default: () => ({}) },
+  filters: { type: Object, default: () => ({}) }
 })
 
 const columns = ['SKU', 'Producto', 'Categoría', 'Stock mín.', 'Stock máx.', 'Activo']
@@ -107,6 +109,9 @@ const deleteProduct = () => {
       subtitle="Catálogo oficial de productos y souvenirs"
       :columns="columns"
       :rows="formattedProducts"
+      :pagination="pagination"
+      :filters="filters"
+      search-route="/equipo4/productos"
     >
       <template #toolbar>
         <button
