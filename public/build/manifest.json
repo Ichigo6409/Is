@@ -1,0 +1,252 @@
+{
+  "_Equipo4Layout-Bfe3Siwl.js": {
+    "file": "assets/Equipo4Layout-Bfe3Siwl.js",
+    "name": "Equipo4Layout",
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "assets": [
+      "assets/campus-digital-logo-DyIDbxrP.png"
+    ]
+  },
+  "_Team4Module-GG1tF8OK.js": {
+    "file": "assets/Team4Module-GG1tF8OK.js",
+    "name": "Team4Module",
+    "imports": [
+      "resources/js/app.js"
+    ]
+  },
+  "resources/css/app.css": {
+    "file": "assets/app-BOunAlTn.css",
+    "src": "resources/css/app.css",
+    "isEntry": true,
+    "name": "app",
+    "names": [
+      "app.css"
+    ]
+  },
+  "resources/images/campus-digital-logo.png": {
+    "file": "assets/campus-digital-logo-DyIDbxrP.png",
+    "src": "resources/images/campus-digital-logo.png"
+  },
+  "resources/js/Pages/Equipo4/Alertas.vue": {
+    "file": "assets/Alertas-DvnBZ6Ge.js",
+    "name": "Alertas",
+    "src": "resources/js/Pages/Equipo4/Alertas.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_Equipo4Layout-Bfe3Siwl.js",
+      "_Team4Module-GG1tF8OK.js",
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/app-BOunAlTn.css"
+    ]
+  },
+  "resources/js/Pages/Equipo4/Almacenes.vue": {
+    "file": "assets/Almacenes-DmpsMRCc.js",
+    "name": "Almacenes",
+    "src": "resources/js/Pages/Equipo4/Almacenes.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_Equipo4Layout-Bfe3Siwl.js",
+      "_Team4Module-GG1tF8OK.js",
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/app-BOunAlTn.css"
+    ]
+  },
+  "resources/js/Pages/Equipo4/Compras.vue": {
+    "file": "assets/Compras-H-d1eqtS.js",
+    "name": "Compras",
+    "src": "resources/js/Pages/Equipo4/Compras.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_Equipo4Layout-Bfe3Siwl.js",
+      "_Team4Module-GG1tF8OK.js",
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/app-BOunAlTn.css"
+    ]
+  },
+  "resources/js/Pages/Equipo4/Conteos.vue": {
+    "file": "assets/Conteos-WZXmLBE1.js",
+    "name": "Conteos",
+    "src": "resources/js/Pages/Equipo4/Conteos.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_Equipo4Layout-Bfe3Siwl.js",
+      "_Team4Module-GG1tF8OK.js",
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/app-BOunAlTn.css"
+    ]
+  },
+  "resources/js/Pages/Equipo4/Costos.vue": {
+    "file": "assets/Costos-Bg6OxwSO.js",
+    "name": "Costos",
+    "src": "resources/js/Pages/Equipo4/Costos.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_Equipo4Layout-Bfe3Siwl.js",
+      "_Team4Module-GG1tF8OK.js",
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/app-BOunAlTn.css"
+    ]
+  },
+  "resources/js/Pages/Equipo4/Dashboard.vue": {
+    "file": "assets/Dashboard-DRuozjDL.js",
+    "name": "Dashboard",
+    "src": "resources/js/Pages/Equipo4/Dashboard.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_Equipo4Layout-Bfe3Siwl.js",
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/app-BOunAlTn.css"
+    ]
+  },
+  "resources/js/Pages/Equipo4/Devoluciones.vue": {
+    "file": "assets/Devoluciones-BWuLN88L.js",
+    "name": "Devoluciones",
+    "src": "resources/js/Pages/Equipo4/Devoluciones.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_Equipo4Layout-Bfe3Siwl.js",
+      "_Team4Module-GG1tF8OK.js",
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/app-BOunAlTn.css"
+    ]
+  },
+  "resources/js/Pages/Equipo4/Inventario.vue": {
+    "file": "assets/Inventario-Dm_iQD36.js",
+    "name": "Inventario",
+    "src": "resources/js/Pages/Equipo4/Inventario.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_Equipo4Layout-Bfe3Siwl.js",
+      "_Team4Module-GG1tF8OK.js",
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/app-BOunAlTn.css"
+    ]
+  },
+  "resources/js/Pages/Equipo4/Kardex.vue": {
+    "file": "assets/Kardex-K7u86qag.js",
+    "name": "Kardex",
+    "src": "resources/js/Pages/Equipo4/Kardex.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_Equipo4Layout-Bfe3Siwl.js",
+      "_Team4Module-GG1tF8OK.js",
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/app-BOunAlTn.css"
+    ]
+  },
+  "resources/js/Pages/Equipo4/Productos.vue": {
+    "file": "assets/Productos-Y0l4XQ8E.js",
+    "name": "Productos",
+    "src": "resources/js/Pages/Equipo4/Productos.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_Equipo4Layout-Bfe3Siwl.js",
+      "_Team4Module-GG1tF8OK.js",
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/app-BOunAlTn.css"
+    ]
+  },
+  "resources/js/Pages/Equipo4/Proveedores.vue": {
+    "file": "assets/Proveedores-q5GEBFM7.js",
+    "name": "Proveedores",
+    "src": "resources/js/Pages/Equipo4/Proveedores.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_Equipo4Layout-Bfe3Siwl.js",
+      "_Team4Module-GG1tF8OK.js",
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/app-BOunAlTn.css"
+    ]
+  },
+  "resources/js/Pages/Equipo4/Recepciones.vue": {
+    "file": "assets/Recepciones-zaI1Iaz5.js",
+    "name": "Recepciones",
+    "src": "resources/js/Pages/Equipo4/Recepciones.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_Equipo4Layout-Bfe3Siwl.js",
+      "_Team4Module-GG1tF8OK.js",
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/app-BOunAlTn.css"
+    ]
+  },
+  "resources/js/Pages/Equipo4/Reservas.vue": {
+    "file": "assets/Reservas-CFWbVg56.js",
+    "name": "Reservas",
+    "src": "resources/js/Pages/Equipo4/Reservas.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_Equipo4Layout-Bfe3Siwl.js",
+      "_Team4Module-GG1tF8OK.js",
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/app-BOunAlTn.css"
+    ]
+  },
+  "resources/js/Pages/Equipo4/Souvenirs.vue": {
+    "file": "assets/Souvenirs-xvdceLFn.js",
+    "name": "Souvenirs",
+    "src": "resources/js/Pages/Equipo4/Souvenirs.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_Equipo4Layout-Bfe3Siwl.js",
+      "_Team4Module-GG1tF8OK.js",
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/app-BOunAlTn.css"
+    ]
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-G9FeTVp4.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true,
+    "dynamicImports": [
+      "resources/js/Pages/Equipo4/Alertas.vue",
+      "resources/js/Pages/Equipo4/Almacenes.vue",
+      "resources/js/Pages/Equipo4/Compras.vue",
+      "resources/js/Pages/Equipo4/Conteos.vue",
+      "resources/js/Pages/Equipo4/Costos.vue",
+      "resources/js/Pages/Equipo4/Dashboard.vue",
+      "resources/js/Pages/Equipo4/Devoluciones.vue",
+      "resources/js/Pages/Equipo4/Inventario.vue",
+      "resources/js/Pages/Equipo4/Kardex.vue",
+      "resources/js/Pages/Equipo4/Productos.vue",
+      "resources/js/Pages/Equipo4/Proveedores.vue",
+      "resources/js/Pages/Equipo4/Recepciones.vue",
+      "resources/js/Pages/Equipo4/Reservas.vue",
+      "resources/js/Pages/Equipo4/Souvenirs.vue"
+    ],
+    "css": [
+      "assets/app-BOunAlTn.css"
+    ]
+  }
+}
