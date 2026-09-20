@@ -7,38 +7,44 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\LocationController;
+use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\GoodsReceiptController;
 
 Route::prefix('equipo4')->group(function () {
-    Route::get('/', [Team4Controller::class, 'dashboard']);
+    Route::get('/', [Team4Controller::class, 'dashboard'])->name('equipo4.dashboard');
 
-    // Productos
-    Route::get('/productos', [ProductController::class, 'index']);
-    Route::post('/productos', [ProductController::class, 'store']);
-    Route::put('/productos/{id}', [ProductController::class, 'update']);
-    Route::delete('/productos/{id}', [ProductController::class, 'destroy']);
+    Route::get('/productos', [ProductController::class, 'index'])->name('equipo4.productos.index');
+    Route::post('/productos', [ProductController::class, 'store'])->name('equipo4.productos.store');
+    Route::put('/productos/{id}', [ProductController::class, 'update'])->name('equipo4.productos.update');
+    Route::delete('/productos/{id}', [ProductController::class, 'destroy'])->name('equipo4.productos.destroy');
 
-    // Proveedores
-    Route::get('/proveedores', [SupplierController::class, 'index']);
-    Route::post('/proveedores', [SupplierController::class, 'store']);
-    Route::put('/proveedores/{id}', [SupplierController::class, 'update']);
-    Route::delete('/proveedores/{id}', [SupplierController::class, 'destroy']);
+    Route::get('/proveedores', [SupplierController::class, 'index'])->name('equipo4.proveedores.index');
+    Route::post('/proveedores', [SupplierController::class, 'store'])->name('equipo4.proveedores.store');
+    Route::put('/proveedores/{id}', [SupplierController::class, 'update'])->name('equipo4.proveedores.update');
+    Route::delete('/proveedores/{id}', [SupplierController::class, 'destroy'])->name('equipo4.proveedores.destroy');
 
-    // Almacenes
-    Route::get('/almacenes', [WarehouseController::class, 'index']);
-    Route::post('/almacenes', [WarehouseController::class, 'store']);
-    Route::put('/almacenes/{id}', [WarehouseController::class, 'update']);
-    Route::delete('/almacenes/{id}', [WarehouseController::class, 'destroy']);
+    Route::get('/almacenes', [WarehouseController::class, 'index'])->name('equipo4.almacenes.index');
+    Route::post('/almacenes', [WarehouseController::class, 'store'])->name('equipo4.almacenes.store');
+    Route::put('/almacenes/{id}', [WarehouseController::class, 'update'])->name('equipo4.almacenes.update');
+    Route::delete('/almacenes/{id}', [WarehouseController::class, 'destroy'])->name('equipo4.almacenes.destroy');
 
-    // Ubicaciones
-    Route::post('/ubicaciones', [LocationController::class, 'store']);
-    Route::put('/ubicaciones/{id}', [LocationController::class, 'update']);
-    Route::delete('/ubicaciones/{id}', [LocationController::class, 'destroy']);
+    Route::post('/ubicaciones', [LocationController::class, 'store'])->name('equipo4.ubicaciones.store');
+    Route::put('/ubicaciones/{id}', [LocationController::class, 'update'])->name('equipo4.ubicaciones.update');
+    Route::delete('/ubicaciones/{id}', [LocationController::class, 'destroy'])->name('equipo4.ubicaciones.destroy');
 
-    // Módulos pendientes (vistas estáticas por ahora)
+    Route::get('/compras', [PurchaseOrderController::class, 'index'])->name('equipo4.compras.index');
+    Route::post('/compras', [PurchaseOrderController::class, 'store'])->name('equipo4.compras.store');
+    Route::get('/compras/{id}/details', [PurchaseOrderController::class, 'show'])->name('equipo4.compras.show');
+    Route::put('/compras/{id}', [PurchaseOrderController::class, 'update'])->name('equipo4.compras.update');
+    Route::patch('/compras/{id}/status', [PurchaseOrderController::class, 'changeStatus'])->name('equipo4.compras.status');
+    Route::delete('/compras/{id}', [PurchaseOrderController::class, 'destroy'])->name('equipo4.compras.destroy');
+
+    Route::get('/recepciones', [GoodsReceiptController::class, 'index'])->name('equipo4.recepciones.index');
+    Route::post('/recepciones', [GoodsReceiptController::class, 'store'])->name('equipo4.recepciones.store');
+    Route::delete('/recepciones/{id}', [GoodsReceiptController::class, 'destroy'])->name('equipo4.recepciones.destroy');
+
     $pages = [
         'kardex' => 'Kardex',
-        'compras' => 'Compras',
-        'recepciones' => 'Recepciones',
         'devoluciones' => 'Devoluciones',
         'costos' => 'Costos',
         'reservas' => 'Reservas',
