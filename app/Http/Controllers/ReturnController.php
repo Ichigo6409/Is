@@ -13,6 +13,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class ReturnController extends Controller
@@ -53,29 +54,31 @@ class ReturnController extends Controller
         $all = collect();
 
         foreach ($supplierReturns as $r) {
-            $supplier = $suppliersMap->get((string) $r->supplier_id);
+            $attrs = $r->getAttributes();
+            $supplier = $suppliersMap->get((string) ($attrs['supplier_id'] ?? ''));
             $all->push([
-                '_id' => (string) $r->_id,
-                'folio' => (string) $r->folio,
+                '_id' => (string) ($attrs['_id'] ?? ''),
+                'folio' => (string) ($attrs['folio'] ?? ''),
                 'type' => 'A proveedor',
-                'reference' => (string) ($r->source_reference ?? ''),
-                'reason' => (string) ($r->reason ?? ''),
+                'reference' => (string) ($attrs['source_reference'] ?? ''),
+                'reason' => (string) ($attrs['reason'] ?? ''),
                 'resolution' => 'Devolución',
-                'status' => (string) $r->status,
+                'status' => (string) ($attrs['status'] ?? ''),
                 'third_party' => $supplier ? (string) $supplier->legal_name : '—',
             ]);
         }
 
         foreach ($customerReturns as $r) {
+            $attrs = $r->getAttributes();
             $all->push([
-                '_id' => (string) $r->_id,
-                'folio' => (string) $r->folio,
+                '_id' => (string) ($attrs['_id'] ?? ''),
+                'folio' => (string) ($attrs['folio'] ?? ''),
                 'type' => 'De cliente',
-                'reference' => (string) ($r->sale_reference ?? ''),
-                'reason' => (string) ($r->reason ?? ''),
-                'resolution' => (string) ($r->resolution ?? ''),
-                'status' => (string) $r->status,
-                'third_party' => (string) ($r->customer_id ?? '—'),
+                'reference' => (string) ($attrs['sale_reference'] ?? ''),
+                'reason' => (string) ($attrs['reason'] ?? ''),
+                'resolution' => (string) ($attrs['resolution'] ?? ''),
+                'status' => (string) ($attrs['status'] ?? ''),
+                'third_party' => (string) ($attrs['customer_id'] ?? '—'),
             ]);
         }
 
@@ -106,19 +109,34 @@ class ReturnController extends Controller
             'code' => (string) $l->code,
         ])->values()->all();
 
-        // NUEVO: mapa de qué ubicaciones tienen stock de cada producto.
-        // Estructura: { product_id: { location_id: available_qty } }
         $inventoryMap = [];
         $allInventory = Inventory::where('business_id', $this->businessId)->get();
         foreach ($allInventory as $inv) {
-            $pid = (string) $inv->product_id;
-            $lid = (string) $inv->location_id;
-            $qty = (int) $inv->available;
-            if (!isset($inventoryMap[$pid])) {
-                $inventoryMap[$pid] = [];
-            }
+            $attrsInv = $inv->getAttributes();
+            $pid = (string) ($attrsInv['product_id'] ?? '');
+            $lid = (string) ($attrsInv['location_id'] ?? '');
+            $qty = (int) ($attrsInv['available'] ?? 0);
+            if (!isset($inventoryMap[$pid])) $inventoryMap[$pid] = [];
             $inventoryMap[$pid][$lid] = $qty;
         }
+
+        // KPIs
+        $monthStart = new \MongoDB\BSON\UTCDateTime(strtotime(date('Y-m-01')) * 1000);
+        $supplierColl = DB::connection('mongodb')->getCollection('supplier_returns');
+        $customerColl = DB::connection('mongodb')->getCollection('customer_returns');
+
+        $totalMonth = $supplierColl->countDocuments(['business_id' => $this->businessId, 'created_at' => ['$gte' => $monthStart]])
+            + $customerColl->countDocuments(['business_id' => $this->businessId, 'created_at' => ['$gte' => $monthStart]]);
+
+        $toSupplier = $supplierColl->countDocuments(['business_id' => $this->businessId]);
+        $fromCustomer = $customerColl->countDocuments(['business_id' => $this->businessId]);
+
+        $kpis = [
+            ['label' => 'Total histórico', 'value' => $toSupplier + $fromCustomer],
+            ['label' => 'Este mes', 'value' => $totalMonth, 'color' => 'success'],
+            ['label' => 'A proveedor', 'value' => $toSupplier],
+            ['label' => 'De cliente', 'value' => $fromCustomer, 'color' => $fromCustomer > 0 ? 'warning' : 'default'],
+        ];
 
         return Inertia::render('Equipo4/Devoluciones', [
             'returns' => $items,
@@ -126,6 +144,7 @@ class ReturnController extends Controller
             'productsList' => $productsList,
             'locationsList' => $locationsList,
             'inventoryMap' => $inventoryMap,
+            'kpis' => $kpis,
             'pagination' => [
                 'current_page' => $page,
                 'last_page' => $lastPage,
@@ -163,12 +182,10 @@ class ReturnController extends Controller
             ]);
         } catch (\Throwable $e) {
             Log::error('Fallo al registrar devolucion a proveedor.', ['error' => $e->getMessage()]);
-            return redirect()->route('equipo4.devoluciones.index')
-                ->withErrors(['error' => 'No se pudo registrar: ' . $e->getMessage()]);
+            return redirect()->route('equipo4.devoluciones.index')->withErrors(['error' => 'No se pudo registrar: ' . $e->getMessage()]);
         }
 
-        return redirect()->route('equipo4.devoluciones.index')
-            ->with('success', 'Devolución a proveedor registrada.');
+        return redirect()->route('equipo4.devoluciones.index')->with('success', 'Devolución a proveedor registrada.');
     }
 
     public function storeCustomer(Request $request, ReturnService $returnService): RedirectResponse
@@ -198,11 +215,9 @@ class ReturnController extends Controller
             ]);
         } catch (\Throwable $e) {
             Log::error('Fallo al registrar devolucion de cliente.', ['error' => $e->getMessage()]);
-            return redirect()->route('equipo4.devoluciones.index')
-                ->withErrors(['error' => 'No se pudo registrar: ' . $e->getMessage()]);
+            return redirect()->route('equipo4.devoluciones.index')->withErrors(['error' => 'No se pudo registrar: ' . $e->getMessage()]);
         }
 
-        return redirect()->route('equipo4.devoluciones.index')
-            ->with('success', 'Devolución de cliente registrada.');
+        return redirect()->route('equipo4.devoluciones.index')->with('success', 'Devolución de cliente registrada.');
     }
 }

@@ -7,6 +7,7 @@ import Team4Module from '../../Components/Team4Module.vue'
 const props = defineProps({
   inventory: { type: Array, default: () => [] },
   productsList: { type: Array, default: () => [] },
+  kpis: { type: Array, default: () => [] },
   pagination: { type: Object, default: () => ({}) },
   filters: { type: Object, default: () => ({}) }
 })
@@ -48,10 +49,7 @@ const openAdjustModal = (row) => {
 const submitForm = () => {
   form.post('/equipo4/inventario/adjust', {
     preserveScroll: true,
-    onSuccess: () => {
-      showModal.value = false
-      form.reset()
-    }
+    onSuccess: () => { showModal.value = false; form.reset() }
   })
 }
 </script>
@@ -63,15 +61,13 @@ const submitForm = () => {
       subtitle="Existencias por producto, almacén y ubicación"
       :columns="columns"
       :rows="formattedInventory"
+      :kpis="kpis"
       :pagination="pagination"
       :filters="filters"
       search-route="/equipo4/inventario"
     >
       <template #actions="{ row }">
-        <button
-          @click="openAdjustModal(row)"
-          class="px-3 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition"
-        >
+        <button @click="openAdjustModal(row)" class="px-3 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition">
           Ajustar
         </button>
       </template>
@@ -85,7 +81,6 @@ const submitForm = () => {
         </div>
 
         <div v-if="Object.keys(form.errors).length > 0" class="rounded-lg bg-rose-50 border border-rose-200 p-3">
-          <p class="text-xs font-bold text-rose-800 mb-1">Error:</p>
           <ul class="text-xs text-rose-700 list-disc pl-4 space-y-0.5">
             <li v-for="(err, field) in form.errors" :key="field">{{ err }}</li>
           </ul>
@@ -101,24 +96,13 @@ const submitForm = () => {
         <form @submit.prevent="submitForm" class="space-y-4">
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Cantidad a ajustar *</label>
-            <input
-              v-model.number="form.quantity"
-              type="number"
-              placeholder="Positivo suma, negativo resta"
-              class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7]"
-            />
-            <p class="mt-1 text-[10px] text-slate-500">Ej: 5 para agregar 5 unidades, -3 para quitar 3</p>
+            <input v-model.number="form.quantity" type="number" placeholder="Positivo suma, negativo resta" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
             <p v-if="form.errors.quantity" class="mt-1 text-xs text-rose-600">{{ form.errors.quantity }}</p>
           </div>
 
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Motivo del ajuste *</label>
-            <textarea
-              v-model="form.reason"
-              rows="3"
-              placeholder="Ej: Producto dañado, merma, error de captura..."
-              class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7]"
-            ></textarea>
+            <textarea v-model="form.reason" rows="3" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]"></textarea>
             <p v-if="form.errors.reason" class="mt-1 text-xs text-rose-600">{{ form.errors.reason }}</p>
           </div>
 

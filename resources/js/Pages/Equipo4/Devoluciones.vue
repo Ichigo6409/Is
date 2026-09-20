@@ -10,6 +10,7 @@ const props = defineProps({
   productsList: { type: Array, default: () => [] },
   locationsList: { type: Array, default: () => [] },
   inventoryMap: { type: Object, default: () => ({}) },
+  kpis: { type: Array, default: () => [] },
   pagination: { type: Object, default: () => ({}) },
   filters: { type: Object, default: () => ({}) }
 })
@@ -29,18 +30,12 @@ const formattedReturns = computed(() => {
   }))
 })
 
-// Filtrar locations segun el producto seleccionado y su stock
 function availableLocationsFor(productId) {
-  if (!productId || !props.inventoryMap[productId]) {
-    return []
-  }
+  if (!productId || !props.inventoryMap[productId]) return []
   const stockMap = props.inventoryMap[productId]
   return props.locationsList
     .filter(loc => stockMap[loc._id] !== undefined && stockMap[loc._id] > 0)
-    .map(loc => ({
-      ...loc,
-      available: stockMap[loc._id]
-    }))
+    .map(loc => ({ ...loc, available: stockMap[loc._id] }))
 }
 
 const showSupplierModal = ref(false)
@@ -93,13 +88,8 @@ const submitCustomer = () => {
   })
 }
 
-function onSupplierProductChange() {
-  supplierForm.location_id = ''
-}
-
-function onCustomerProductChange() {
-  customerForm.location_id = ''
-}
+function onSupplierProductChange() { supplierForm.location_id = '' }
+function onCustomerProductChange() { customerForm.location_id = '' }
 </script>
 
 <template>
@@ -109,6 +99,7 @@ function onCustomerProductChange() {
       subtitle="Devoluciones a proveedores y devoluciones de clientes"
       :columns="columns"
       :rows="formattedReturns"
+      :kpis="kpis"
       :pagination="pagination"
       :filters="filters"
       search-route="/equipo4/devoluciones"

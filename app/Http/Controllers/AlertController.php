@@ -21,27 +21,19 @@ class AlertController extends Controller
 
     public function index(Request $request): Response
     {
-        // Auto-sync cada 5 segundos maximo
         $cacheKey = 'equipo4_alerts_last_generate';
         if (!Cache::has($cacheKey)) {
             try {
                 app(AlertGeneratorService::class)->generate();
                 Cache::put($cacheKey, now()->timestamp, 5);
-            } catch (\Throwable $e) {
-                // no-op
-            }
+            } catch (\Throwable $e) {}
         }
 
         $q = trim((string) $request->query('q', ''));
         $showHistory = $request->boolean('history', false);
 
-        // Por defecto solo ACTIVAS. Con ?history=1 incluye resueltas/descartadas.
         $query = StockAlert::where('business_id', $this->businessId);
-
-        if (!$showHistory) {
-            $query->where('status', 'ACTIVE');
-        }
-
+        if (!$showHistory) $query->where('status', 'ACTIVE');
         if ($q !== '') {
             $regex = '/' . preg_quote($q, '/') . '/i';
             $query->where('message', 'regex', $regex);
@@ -49,65 +41,69 @@ class AlertController extends Controller
 
         $alerts = $query->orderBy('created_at', 'desc')->limit(200)->get();
 
-        $productsMap = Product::where('business_id', $this->businessId)
-            ->get()
-            ->keyBy(fn($p) => (string) $p->_id);
-
-        $locationsMap = Location::where('business_id', $this->businessId)
-            ->get()
-            ->keyBy(fn($l) => (string) $l->_id);
+        $productsMap = Product::where('business_id', $this->businessId)->get()->keyBy(fn($p) => (string) $p->_id);
+        $locationsMap = Location::where('business_id', $this->businessId)->get()->keyBy(fn($l) => (string) $l->_id);
 
         $alertsData = $alerts->map(function ($a) use ($productsMap, $locationsMap) {
-            $product = $productsMap->get((string) $a->product_id);
-            $location = $locationsMap->get((string) $a->location_id);
+            $attrs = $a->getAttributes();
+            $product = $productsMap->get((string) ($attrs['product_id'] ?? ''));
+            $location = $locationsMap->get((string) ($attrs['location_id'] ?? ''));
 
             return [
-                '_id' => (string) $a->_id,
+                '_id' => (string) ($attrs['_id'] ?? ''),
                 'product_sku' => $product ? (string) $product->sku : '—',
                 'product_name' => $product ? (string) $product->name : '—',
                 'location_name' => $location ? (string) $location->name : '—',
-                'current_qty' => (int) $a->current_qty,
-                'threshold' => (int) $a->threshold,
-                'priority' => (string) $a->priority,
-                'status' => (string) $a->status,
-                'message' => (string) ($a->message ?? ''),
-                'resolution_reason' => (string) ($a->resolution_reason ?? ''),
+                'current_qty' => (int) ($attrs['current_qty'] ?? 0),
+                'threshold' => (int) ($attrs['threshold'] ?? 0),
+                'priority' => (string) ($attrs['priority'] ?? ''),
+                'status' => (string) ($attrs['status'] ?? ''),
+                'message' => (string) ($attrs['message'] ?? ''),
+                'resolution_reason' => (string) ($attrs['resolution_reason'] ?? ''),
             ];
         })->values()->all();
 
-        $rules = ReorderRule::where('business_id', $this->businessId)
-            ->orderBy('created_at', 'desc')
-            ->get();
-
+        $rules = ReorderRule::where('business_id', $this->businessId)->orderBy('created_at', 'desc')->get();
         $rulesData = $rules->map(function ($r) use ($productsMap, $locationsMap) {
-            $product = $productsMap->get((string) $r->product_id);
-            $location = $locationsMap->get((string) $r->location_id);
-
+            $attrs = $r->getAttributes();
+            $product = $productsMap->get((string) ($attrs['product_id'] ?? ''));
+            $location = $locationsMap->get((string) ($attrs['location_id'] ?? ''));
             return [
-                '_id' => (string) $r->_id,
-                'product_id' => (string) $r->product_id,
+                '_id' => (string) ($attrs['_id'] ?? ''),
+                'product_id' => (string) ($attrs['product_id'] ?? ''),
                 'product_sku' => $product ? (string) $product->sku : '—',
                 'product_name' => $product ? (string) $product->name : '—',
-                'location_id' => (string) $r->location_id,
+                'location_id' => (string) ($attrs['location_id'] ?? ''),
                 'location_name' => $location ? (string) $location->name : '—',
-                'min_qty' => (int) $r->min_qty,
-                'max_qty' => (int) $r->max_qty,
-                'reorder_point' => (int) $r->reorder_point,
-                'active' => (bool) $r->active,
+                'min_qty' => (int) ($attrs['min_qty'] ?? 0),
+                'max_qty' => (int) ($attrs['max_qty'] ?? 0),
+                'reorder_point' => (int) ($attrs['reorder_point'] ?? 0),
+                'active' => (bool) ($attrs['active'] ?? false),
             ];
         })->values()->all();
 
-        $productsList = $productsMap->map(fn($p) => [
-            '_id' => (string) $p->_id,
-            'sku' => (string) $p->sku,
-            'name' => (string) $p->name,
-        ])->values()->all();
+        $productsList = $productsMap->map(fn($p) => ['_id' => (string) $p->_id, 'sku' => (string) $p->sku, 'name' => (string) $p->name])->values()->all();
+        $locationsList = $locationsMap->map(fn($l) => ['_id' => (string) $l->_id, 'code' => (string) $l->code, 'name' => (string) $l->name])->values()->all();
 
-        $locationsList = $locationsMap->map(fn($l) => [
-            '_id' => (string) $l->_id,
-            'code' => (string) $l->code,
-            'name' => (string) $l->name,
-        ])->values()->all();
+        // KPIs
+        $monthStart = new \MongoDB\BSON\UTCDateTime(strtotime(date('Y-m-01')) * 1000);
+        $coll = DB::connection('mongodb')->getCollection('stock_alerts');
+
+        $activeTotal = $coll->countDocuments(['business_id' => $this->businessId, 'status' => 'ACTIVE']);
+        $critical = $coll->countDocuments(['business_id' => $this->businessId, 'status' => 'ACTIVE', 'priority' => 'CRITICAL']);
+        $high = $coll->countDocuments(['business_id' => $this->businessId, 'status' => 'ACTIVE', 'priority' => 'HIGH']);
+        $resolvedMonth = $coll->countDocuments([
+            'business_id' => $this->businessId,
+            'status' => ['$in' => ['RESOLVED', 'DISMISSED']],
+            'updated_at' => ['$gte' => $monthStart],
+        ]);
+
+        $kpis = [
+            ['label' => 'Alertas activas', 'value' => $activeTotal],
+            ['label' => 'Críticas', 'value' => $critical, 'color' => 'danger'],
+            ['label' => 'Altas', 'value' => $high, 'color' => 'warning'],
+            ['label' => 'Resueltas este mes', 'value' => $resolvedMonth, 'color' => 'success'],
+        ];
 
         return Inertia::render('Equipo4/Alertas', [
             'alerts' => $alertsData,
@@ -115,6 +111,7 @@ class AlertController extends Controller
             'productsList' => $productsList,
             'locationsList' => $locationsList,
             'showHistory' => $showHistory,
+            'kpis' => $kpis,
             'filters' => ['q' => $q, 'history' => $showHistory ? '1' : ''],
         ]);
     }
@@ -124,18 +121,10 @@ class AlertController extends Controller
         try {
             $stats = $generator->generate();
             Cache::forget('equipo4_alerts_last_generate');
-
-            $msg = sprintf(
-                'Alertas recalculadas. Creadas: %d, Actualizadas: %d, Resueltas: %d',
-                $stats['created'],
-                $stats['updated'],
-                $stats['resolved']
-            );
-
+            $msg = sprintf('Alertas recalculadas. Creadas: %d, Actualizadas: %d, Resueltas: %d', $stats['created'], $stats['updated'], $stats['resolved']);
             return redirect()->route('equipo4.alertas.index')->with('success', $msg);
         } catch (\Throwable $e) {
-            return redirect()->route('equipo4.alertas.index')
-                ->withErrors(['error' => 'Error al generar alertas: ' . $e->getMessage()]);
+            return redirect()->route('equipo4.alertas.index')->withErrors(['error' => 'Error: ' . $e->getMessage()]);
         }
     }
 
@@ -148,14 +137,8 @@ class AlertController extends Controller
             'reason.min' => 'El motivo debe tener al menos 5 caracteres.',
         ]);
 
-        $alert = StockAlert::where('_id', $id)
-            ->where('business_id', $this->businessId)
-            ->first();
-
-        if (!$alert) {
-            return redirect()->route('equipo4.alertas.index')
-                ->withErrors(['error' => 'Alerta no encontrada.']);
-        }
+        $alert = StockAlert::where('_id', $id)->where('business_id', $this->businessId)->first();
+        if (!$alert) return redirect()->route('equipo4.alertas.index')->withErrors(['error' => 'Alerta no encontrada.']);
 
         DB::connection('mongodb')->getCollection('stock_alerts')->updateOne(
             ['_id' => new ObjectId($id)],
@@ -168,7 +151,6 @@ class AlertController extends Controller
             ]]
         );
 
-        return redirect()->route('equipo4.alertas.index')
-            ->with('success', 'Alerta descartada.');
+        return redirect()->route('equipo4.alertas.index')->with('success', 'Alerta descartada.');
     }
 }
