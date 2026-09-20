@@ -9,6 +9,7 @@ const props = defineProps({
   suppliersList: { type: Array, default: () => [] },
   productsList: { type: Array, default: () => [] },
   showHistory: { type: Boolean, default: false },
+  kpis: { type: Array, default: () => [] },
   pagination: { type: Object, default: () => ({}) },
   filters: { type: Object, default: () => ({}) }
 })
@@ -49,9 +50,7 @@ const form = useForm({
   items: []
 })
 
-function addItem() {
-  form.items.push({ product_id: '', quantity: 1, unit_cost: 0 })
-}
+function addItem() { form.items.push({ product_id: '', quantity: 1, unit_cost: 0 }) }
 function removeItem(index) { form.items.splice(index, 1) }
 function itemSubtotal(item) { return (item.quantity || 0) * (item.unit_cost || 0) }
 
@@ -82,30 +81,17 @@ const openEditModal = async (row) => {
     form.notes = data.notes || ''
     form.status = data.status
     form.items = data.items.map(i => ({ product_id: i.product_id, quantity: i.quantity, unit_cost: i.unit_cost }))
-  } catch (e) {
-    console.error(e)
-  } finally {
-    loadingDetails.value = false
-  }
+  } catch (e) { console.error(e) } finally { loadingDetails.value = false }
 }
 
-const confirmDelete = (row) => {
-  selectedOrder.value = row
-  showDeleteModal.value = true
-}
+const confirmDelete = (row) => { selectedOrder.value = row; showDeleteModal.value = true }
 
 const submitForm = () => {
   const options = {
     preserveScroll: true,
-    onSuccess: () => {
-      showModal.value = false
-      form.reset()
-    },
-    onError: (errors) => {
-      console.error('Errores de validación:', errors)
-    },
+    onSuccess: () => { showModal.value = false; form.reset() },
+    onError: (errors) => { console.error('Errores de validación:', errors) },
   }
-
   if (isEditing.value) {
     form.put(`/equipo4/compras/${selectedOrder.value._id}`, options)
   } else {
@@ -115,22 +101,17 @@ const submitForm = () => {
 
 const deleteOrder = () => {
   if (!selectedOrder.value) return
-  router.delete(`/equipo4/compras/${selectedOrder.value._id}`, {
-    onSuccess: () => {
-      showDeleteModal.value = false
-      selectedOrder.value = null
-    }
-  })
+  router.delete(`/equipo4/compras/${selectedOrder.value._id}`, { onSuccess: () => { showDeleteModal.value = false; selectedOrder.value = null } })
 }
 
 const authorizeOrder = (row) => {
-  if (!confirm(`Autorizar la OC ${row.folio}?`)) return
-  router.patch(`/equipo4/compras/${row._id}/status`, { action: 'autorizar' }, { preserveScroll: true })
+  if (!confirm(`¿Autorizar la OC ${row.folio}?`)) return
+  router.post(`/equipo4/compras/${row._id}/status`, { action: 'autorizar' }, { preserveScroll: true })
 }
 
 const cancelOrder = (row) => {
-  if (!confirm(`Cancelar la OC ${row.folio}? Esta accion no se puede deshacer.`)) return
-  router.patch(`/equipo4/compras/${row._id}/status`, { action: 'cancelar' }, { preserveScroll: true })
+  if (!confirm(`¿Cancelar la OC ${row.folio}?`)) return
+  router.post(`/equipo4/compras/${row._id}/status`, { action: 'cancelar' }, { preserveScroll: true })
 }
 
 const toggleHistory = () => {
@@ -151,6 +132,7 @@ const toggleHistory = () => {
       :subtitle="showHistory ? 'Historial de OCs completadas y canceladas' : 'OCs activas por autorizar, editar o recibir'"
       :columns="columns"
       :rows="formattedOrders"
+      :kpis="kpis"
       :pagination="pagination"
       :filters="filters"
       search-route="/equipo4/compras"
@@ -163,28 +145,21 @@ const toggleHistory = () => {
 
       <template #actions="{ row }">
         <div class="flex items-center justify-end gap-1">
-          <!-- BORRADOR: editar, autorizar, eliminar, cancelar -->
           <template v-if="row.status === 'BORRADOR'">
             <button @click="openEditModal(row)" class="px-2 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition">Editar</button>
             <button @click="authorizeOrder(row)" class="px-2 py-1 text-xs font-medium rounded bg-[#10B981] text-white hover:bg-emerald-700 transition">Autorizar</button>
             <button @click="cancelOrder(row)" class="px-2 py-1 text-xs font-medium rounded bg-amber-600 text-white hover:bg-amber-700 transition">Cancelar</button>
             <button @click="confirmDelete(row)" class="px-2 py-1 text-xs font-medium rounded bg-rose-600 text-white hover:bg-rose-700 transition">Eliminar</button>
           </template>
-
-          <!-- SOLICITADA: editar, autorizar, cancelar -->
           <template v-else-if="row.status === 'SOLICITADA'">
             <button @click="openEditModal(row)" class="px-2 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition">Editar</button>
             <button @click="authorizeOrder(row)" class="px-2 py-1 text-xs font-medium rounded bg-[#10B981] text-white hover:bg-emerald-700 transition">Autorizar</button>
             <button @click="cancelOrder(row)" class="px-2 py-1 text-xs font-medium rounded bg-amber-600 text-white hover:bg-amber-700 transition">Cancelar</button>
           </template>
-
-          <!-- AUTORIZADA: recibir, cancelar -->
           <template v-else-if="row.status === 'AUTORIZADA'">
             <a href="/equipo4/recepciones" class="px-2 py-1 text-xs font-medium rounded bg-[#00338D] text-white hover:bg-[#0284C7] transition">Recibir</a>
             <button @click="cancelOrder(row)" class="px-2 py-1 text-xs font-medium rounded bg-amber-600 text-white hover:bg-amber-700 transition">Cancelar</button>
           </template>
-
-          <!-- RECIBIDA_TOTAL o CANCELADA: sin acciones -->
           <template v-else>
             <span class="text-xs text-slate-400 italic">Sin acciones</span>
           </template>
@@ -192,7 +167,6 @@ const toggleHistory = () => {
       </template>
     </Team4Module>
 
-    <!-- Modal OC -->
     <div v-if="showModal" class="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-4xl p-6 space-y-4 my-8">
         <div class="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -213,7 +187,7 @@ const toggleHistory = () => {
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Proveedor *</label>
-              <select v-model="form.supplier_id" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7] bg-white">
+              <select v-model="form.supplier_id" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
                 <option value="" disabled>Selecciona un proveedor</option>
                 <option v-for="s in suppliersList" :key="s._id" :value="s._id">{{ s.code }} - {{ s.legal_name }}</option>
               </select>
@@ -221,23 +195,22 @@ const toggleHistory = () => {
             </div>
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Entrega esperada *</label>
-              <input v-model="form.expected_at" type="date" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7]" />
+              <input v-model="form.expected_at" type="date" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
               <p v-if="form.errors.expected_at" class="mt-1 text-xs text-rose-600">{{ form.errors.expected_at }}</p>
             </div>
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Estado *</label>
-              <select v-model="form.status" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7] bg-white">
+              <select v-model="form.status" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
                 <option value="BORRADOR">Borrador</option>
                 <option value="SOLICITADA">Solicitada</option>
                 <option v-if="isEditing" value="AUTORIZADA">Autorizada</option>
               </select>
-              <p class="mt-1 text-[10px] text-slate-500">Para autorizar rápido, usa el botón en el listado.</p>
             </div>
           </div>
 
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Notas</label>
-            <textarea v-model="form.notes" rows="2" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7]" placeholder="Observaciones opcionales"></textarea>
+            <textarea v-model="form.notes" rows="2" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]"></textarea>
           </div>
 
           <div class="border-t border-slate-100 pt-4">
@@ -265,8 +238,8 @@ const toggleHistory = () => {
                         <option v-for="p in productsList" :key="p._id" :value="p._id">{{ p.sku }} - {{ p.name }}</option>
                       </select>
                     </td>
-                    <td class="px-3 py-2"><input v-model.number="item.quantity" type="number" min="1" class="w-full px-2 py-1 text-xs rounded border border-slate-300 focus:border-[#0284C7]" /></td>
-                    <td class="px-3 py-2"><input v-model.number="item.unit_cost" type="number" min="0" step="0.01" class="w-full px-2 py-1 text-xs rounded border border-slate-300 focus:border-[#0284C7]" /></td>
+                    <td class="px-3 py-2"><input v-model.number="item.quantity" type="number" min="1" class="w-full px-2 py-1 text-xs rounded border border-slate-300" /></td>
+                    <td class="px-3 py-2"><input v-model.number="item.unit_cost" type="number" min="0" step="0.01" class="w-full px-2 py-1 text-xs rounded border border-slate-300" /></td>
                     <td class="px-3 py-2 text-xs font-semibold text-slate-700">${{ itemSubtotal(item).toFixed(2) }}</td>
                     <td class="px-3 py-2 text-center"><button type="button" @click="removeItem(index)" class="text-rose-600 hover:text-rose-800 text-lg font-bold leading-none">&times;</button></td>
                   </tr>
@@ -297,7 +270,7 @@ const toggleHistory = () => {
     <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4">
         <h3 class="text-lg font-bold text-slate-900">¿Eliminar Orden de Compra?</h3>
-        <p class="text-sm text-slate-600">Vas a eliminar la OC <strong>{{ selectedOrder?.folio }}</strong>. Solo se permite si no tiene recepciones.</p>
+        <p class="text-sm text-slate-600">Vas a eliminar la OC <strong>{{ selectedOrder?.folio }}</strong>.</p>
         <div class="flex justify-end gap-2 pt-2">
           <button @click="showDeleteModal = false" class="px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition">Cancelar</button>
           <button @click="deleteOrder" class="px-4 py-2 text-sm font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition">Eliminar</button>

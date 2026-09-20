@@ -6,6 +6,7 @@ import Team4Module from '../../Components/Team4Module.vue'
 
 const props = defineProps({
   suppliers: { type: Array, default: () => [] },
+  kpis: { type: Array, default: () => [] },
   pagination: { type: Object, default: () => ({}) },
   filters: { type: Object, default: () => ({}) }
 })
@@ -113,6 +114,7 @@ const deleteSupplier = () => {
       subtitle="Catálogo de proveedores, contactos y condiciones comerciales"
       :columns="columns"
       :rows="formattedSuppliers"
+      :kpis="kpis"
       :pagination="pagination"
       :filters="filters"
       search-route="/equipo4/proveedores"
@@ -138,16 +140,23 @@ const deleteSupplier = () => {
           <button @click="showModal = false" class="text-slate-400 hover:text-slate-600 font-bold">&times;</button>
         </div>
 
+        <div v-if="Object.keys(form.errors).length > 0" class="rounded-lg bg-rose-50 border border-rose-200 p-3">
+          <p class="text-xs font-bold text-rose-800 mb-1">Errores de validación:</p>
+          <ul class="text-xs text-rose-700 list-disc pl-4 space-y-0.5">
+            <li v-for="(err, field) in form.errors" :key="field">{{ err }}</li>
+          </ul>
+        </div>
+
         <form @submit.prevent="submitForm" class="space-y-4">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Código *</label>
-              <input v-model="form.code" type="text" placeholder="PRV-001" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7] uppercase" />
+              <input v-model="form.code" type="text" placeholder="PRV-001" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
               <p v-if="form.errors.code" class="mt-1 text-xs text-rose-600">{{ form.errors.code }}</p>
             </div>
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Estado *</label>
-              <select v-model="form.status" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7] bg-white">
+              <select v-model="form.status" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
                 <option value="ACTIVO">Activo</option>
                 <option value="INACTIVO">Inactivo</option>
                 <option value="SUSPENDIDO">Suspendido</option>
@@ -157,41 +166,40 @@ const deleteSupplier = () => {
 
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Razón social *</label>
-            <input v-model="form.legal_name" type="text" placeholder="Ej. Textiles del Norte SA de CV" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7]" />
+            <input v-model="form.legal_name" type="text" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
             <p v-if="form.errors.legal_name" class="mt-1 text-xs text-rose-600">{{ form.errors.legal_name }}</p>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Nombre comercial</label>
-              <input v-model="form.trade_name" type="text" placeholder="Ej. Textiles MX" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7]" />
+              <input v-model="form.trade_name" type="text" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
             </div>
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">RFC</label>
-              <input v-model="form.tax_id" type="text" placeholder="XAXX010101000" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7] uppercase" />
+              <input v-model="form.tax_id" type="text" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
             </div>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Contacto *</label>
-              <input v-model="form.contact_name" type="text" placeholder="Nombre del contacto" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7]" />
+              <input v-model="form.contact_name" type="text" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
               <p v-if="form.errors.contact_name" class="mt-1 text-xs text-rose-600">{{ form.errors.contact_name }}</p>
             </div>
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Email</label>
-              <input v-model="form.contact_email" type="email" placeholder="correo@proveedor.com" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7]" />
-              <p v-if="form.errors.contact_email" class="mt-1 text-xs text-rose-600">{{ form.errors.contact_email }}</p>
+              <input v-model="form.contact_email" type="email" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
             </div>
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Teléfono</label>
-              <input v-model="form.contact_phone" type="text" placeholder="81 1234 5678" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7]" />
+              <input v-model="form.contact_phone" type="text" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
             </div>
           </div>
 
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Términos de pago *</label>
-            <select v-model="form.payment_terms" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7] bg-white">
+            <select v-model="form.payment_terms" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
               <option value="CONTADO">Contado</option>
               <option value="15_DIAS">15 días</option>
               <option value="30_DIAS">30 días</option>
@@ -201,7 +209,7 @@ const deleteSupplier = () => {
 
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Notas</label>
-            <textarea v-model="form.notes" rows="2" placeholder="Notas adicionales" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7]"></textarea>
+            <textarea v-model="form.notes" rows="2" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]"></textarea>
           </div>
 
           <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
@@ -217,9 +225,7 @@ const deleteSupplier = () => {
     <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4">
         <h3 class="text-lg font-bold text-slate-900">¿Eliminar proveedor?</h3>
-        <p class="text-sm text-slate-600">
-          Esta acción eliminará permanentemente a <strong>{{ selectedSupplier?.legal_name }}</strong> ({{ selectedSupplier?.code }}).
-        </p>
+        <p class="text-sm text-slate-600">Esta acción eliminará permanentemente a <strong>{{ selectedSupplier?.legal_name }}</strong> ({{ selectedSupplier?.code }}).</p>
         <div class="flex justify-end gap-2 pt-2">
           <button @click="showDeleteModal = false" class="px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition">Cancelar</button>
           <button @click="deleteSupplier" class="px-4 py-2 text-sm font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition">Eliminar</button>

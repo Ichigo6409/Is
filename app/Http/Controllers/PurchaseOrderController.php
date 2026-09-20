@@ -44,33 +44,27 @@ class PurchaseOrderController extends Controller
             ->keyBy(fn($s) => (string) $s->_id);
 
         $ordersData = collect($orders->items())->map(function ($o) use ($suppliersMap) {
-            $supplier = $suppliersMap->get((string) $o->supplier_id);
+            $attrs = $o->getAttributes();
+            $supplier = $suppliersMap->get((string) ($attrs['supplier_id'] ?? ''));
 
-            // Formato de fecha segura (sin instanceof porque Mongo puede devolver array)
             $expectedAt = null;
-            if ($o->expected_at) {
-                try {
-                    if (is_string($o->expected_at)) {
-                        $expectedAt = substr($o->expected_at, 0, 10);
-                    } else {
-                        $expectedAt = \Illuminate\Support\Carbon::parse($o->expected_at)->format('Y-m-d');
-                    }
-                } catch (\Throwable $e) {
-                    $expectedAt = null;
-                }
+            $rawDate = $attrs['expected_at'] ?? null;
+            if ($rawDate instanceof \DateTimeInterface) {
+                $expectedAt = $rawDate->format('Y-m-d');
+            } elseif (is_string($rawDate)) {
+                try { $expectedAt = \Illuminate\Support\Carbon::parse($rawDate)->format('Y-m-d'); } catch (\Throwable $e) { $expectedAt = null; }
             }
 
             return [
-                '_id' => (string) $o->_id,
-                'folio' => (string) $o->folio,
-                'supplier_id' => (string) $o->supplier_id,
+                '_id' => (string) ($attrs['_id'] ?? ''),
+                'folio' => (string) ($attrs['folio'] ?? ''),
+                'supplier_id' => (string) ($attrs['supplier_id'] ?? ''),
                 'supplier_name' => $supplier ? (string) $supplier->legal_name : 'Desconocido',
-                'status' => (string) $o->status,
+                'status' => (string) ($attrs['status'] ?? ''),
                 'expected_at' => $expectedAt,
-                'notes' => (string) ($o->notes ?? ''),
-                'total_estimated' => (float) ($o->total_estimated ?? 0),
-                'items_count' => (int) ($o->items_count ?? 0),
-                // NO enviamos created_at para evitar problemas con Mongo
+                'notes' => (string) ($attrs['notes'] ?? ''),
+                'total_estimated' => (float) ($attrs['total_estimated'] ?? 0),
+                'items_count' => (int) ($attrs['items_count'] ?? 0),
             ];
         })->values()->all();
 
@@ -88,11 +82,27 @@ class PurchaseOrderController extends Controller
             ->map(fn($p) => ['_id' => (string) $p->_id, 'sku' => (string) $p->sku, 'name' => (string) $p->name])
             ->values()->all();
 
+        // KPIs
+        $baseQuery = PurchaseOrder::where('business_id', $this->businessId);
+
+        $totalActive = (clone $baseQuery)->whereIn('status', ['BORRADOR', 'SOLICITADA', 'AUTORIZADA'])->count();
+        $borradores = (clone $baseQuery)->where('status', 'BORRADOR')->count();
+        $solicitadas = (clone $baseQuery)->where('status', 'SOLICITADA')->count();
+        $autorizadas = (clone $baseQuery)->where('status', 'AUTORIZADA')->count();
+
+        $kpis = [
+            ['label' => 'OCs activas', 'value' => $totalActive],
+            ['label' => 'Borradores', 'value' => $borradores],
+            ['label' => 'Solicitadas', 'value' => $solicitadas, 'color' => 'warning'],
+            ['label' => 'Autorizadas', 'value' => $autorizadas, 'color' => 'success'],
+        ];
+
         return Inertia::render('Equipo4/Compras', [
             'orders' => $ordersData,
             'suppliersList' => $suppliersList,
             'productsList' => $productsList,
             'showHistory' => $showHistory,
+            'kpis' => $kpis,
             'pagination' => [
                 'current_page' => $orders->currentPage(),
                 'last_page' => $orders->lastPage(),
@@ -101,10 +111,7 @@ class PurchaseOrderController extends Controller
                 'from' => $orders->firstItem() ?? 0,
                 'to' => $orders->lastItem() ?? 0,
             ],
-            'filters' => [
-                'q' => $q,
-                'history' => $showHistory ? '1' : '',
-            ],
+            'filters' => ['q' => $q, 'history' => $showHistory ? '1' : ''],
         ]);
     }
 
@@ -133,14 +140,12 @@ class PurchaseOrderController extends Controller
             $order->save();
 
             $orderId = (string) $order->_id;
-
             if (empty($orderId) || $orderId === 'undefined' || $orderId === 'null') {
                 throw new \RuntimeException('No se pudo obtener el _id de la OC.');
             }
 
             foreach ($items as $index => $item) {
                 $product = Product::where('_id', $item['product_id'])->first();
-
                 $orderItem = new PurchaseOrderItem();
                 $orderItem->_id = new ObjectId();
                 $orderItem->fill([
@@ -158,22 +163,13 @@ class PurchaseOrderController extends Controller
                 $createdItemIds[] = (string) $orderItem->_id;
             }
         } catch (\Throwable $e) {
-            Log::error('Fallo al crear OC. Iniciando compensacion.', [
-                'folio' => $folio,
-                'error' => $e->getMessage(),
-            ]);
+            Log::error('Fallo al crear OC. Iniciando compensacion.', ['folio' => $folio, 'error' => $e->getMessage()]);
 
             if (!empty($createdItemIds)) {
-                try {
-                    PurchaseOrderItem::whereIn('_id', $createdItemIds)->delete();
-                } catch (\Throwable $ex) {
-                    Log::critical('Fallo al limpiar items.', ['error' => $ex->getMessage()]);
-                }
+                try { PurchaseOrderItem::whereIn('_id', $createdItemIds)->delete(); } catch (\Throwable $ex) {}
             }
             if ($order !== null && $order->_id) {
-                try { $order->delete(); } catch (\Throwable $ex) {
-                    Log::critical('Fallo al limpiar OC.', ['error' => $ex->getMessage()]);
-                }
+                try { $order->delete(); } catch (\Throwable $ex) {}
             }
 
             return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'No se pudo crear la OC: ' . $e->getMessage()]);
@@ -199,11 +195,6 @@ class PurchaseOrderController extends Controller
         $validated['total_estimated'] = $total;
         $validated['items_count'] = count($items);
 
-        $oldItems = PurchaseOrderItem::where('purchase_order_id', $id)
-            ->get()
-            ->map(fn($i) => $i->toArray())
-            ->toArray();
-
         try {
             $order->fill($validated);
             $order->save();
@@ -212,7 +203,6 @@ class PurchaseOrderController extends Controller
 
             foreach ($items as $index => $item) {
                 $product = Product::where('_id', $item['product_id'])->first();
-
                 $orderItem = new PurchaseOrderItem();
                 $orderItem->_id = new ObjectId();
                 $orderItem->fill([
@@ -230,20 +220,6 @@ class PurchaseOrderController extends Controller
             }
         } catch (\Throwable $e) {
             Log::error('Fallo al actualizar OC.', ['order_id' => $id, 'error' => $e->getMessage()]);
-
-            try {
-                PurchaseOrderItem::where('purchase_order_id', $id)->delete();
-                foreach ($oldItems as $oldItem) {
-                    $restored = new PurchaseOrderItem();
-                    $restored->_id = new ObjectId();
-                    unset($oldItem['_id']);
-                    $restored->fill($oldItem);
-                    $restored->save();
-                }
-            } catch (\Throwable $ex) {
-                Log::critical('Fallo al restaurar items.', ['error' => $ex->getMessage()]);
-            }
-
             return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'No se pudo actualizar la OC: ' . $e->getMessage()]);
         }
 
@@ -257,44 +233,32 @@ class PurchaseOrderController extends Controller
         ]);
 
         $order = PurchaseOrder::where('_id', $id)->where('business_id', $this->businessId)->first();
-        if (!$order) {
-            return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'Orden de compra no encontrada.']);
-        }
+        if (!$order) return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'Orden de compra no encontrada.']);
 
         $action = $validated['action'];
         $currentStatus = $order->status;
 
         if (in_array($currentStatus, ['RECIBIDA_TOTAL', 'CANCELADA'])) {
-            return redirect()->route('equipo4.compras.index')->withErrors([
-                'error' => 'La OC ya esta en estado ' . $currentStatus . ' y no se puede modificar.'
-            ]);
+            return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'La OC ya esta en estado ' . $currentStatus . '.']);
         }
 
         if ($action === 'autorizar') {
             if (!in_array($currentStatus, ['BORRADOR', 'SOLICITADA'])) {
-                return redirect()->route('equipo4.compras.index')->withErrors([
-                    'error' => 'Solo se pueden autorizar OCs en estado Borrador o Solicitada. Estado actual: ' . $currentStatus
-                ]);
+                return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'Solo se pueden autorizar OCs en estado Borrador o Solicitada.']);
             }
-
             $order->status = 'AUTORIZADA';
             $order->authorized_by = 'USR-ADMIN-001';
             $order->save();
-
             return redirect()->route('equipo4.compras.index')->with('success', 'OC ' . $order->folio . ' autorizada.');
         }
 
         if ($action === 'cancelar') {
             $hasReceipts = GoodsReceipt::where('purchase_order_id', $id)->exists();
             if ($hasReceipts) {
-                return redirect()->route('equipo4.compras.index')->withErrors([
-                    'error' => 'No se puede cancelar: la OC ya tiene recepciones asociadas.'
-                ]);
+                return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'No se puede cancelar: la OC ya tiene recepciones asociadas.']);
             }
-
             $order->status = 'CANCELADA';
             $order->save();
-
             return redirect()->route('equipo4.compras.index')->with('success', 'OC ' . $order->folio . ' cancelada.');
         }
 
@@ -319,28 +283,18 @@ class PurchaseOrderController extends Controller
                 'subtotal' => (float) $i->subtotal,
             ])->values()->all();
 
-        // Formato seguro de expected_at
-        $expectedAt = null;
-        if ($order->expected_at) {
-            try {
-                if (is_string($order->expected_at)) {
-                    $expectedAt = substr($order->expected_at, 0, 10);
-                } else {
-                    $expectedAt = \Illuminate\Support\Carbon::parse($order->expected_at)->format('Y-m-d');
-                }
-            } catch (\Throwable $e) {
-                $expectedAt = null;
-            }
-        }
+        $attrs = $order->getAttributes();
 
         return response()->json([
-            '_id' => (string) $order->_id,
-            'folio' => (string) $order->folio,
-            'supplier_id' => (string) $order->supplier_id,
-            'status' => (string) $order->status,
-            'expected_at' => $expectedAt,
-            'notes' => (string) ($order->notes ?? ''),
-            'total_estimated' => (float) ($order->total_estimated ?? 0),
+            '_id' => (string) ($attrs['_id'] ?? ''),
+            'folio' => (string) ($attrs['folio'] ?? ''),
+            'supplier_id' => (string) ($attrs['supplier_id'] ?? ''),
+            'status' => (string) ($attrs['status'] ?? ''),
+            'expected_at' => isset($attrs['expected_at']) && $attrs['expected_at'] instanceof \DateTimeInterface
+                ? $attrs['expected_at']->format('Y-m-d')
+                : null,
+            'notes' => (string) ($attrs['notes'] ?? ''),
+            'total_estimated' => (float) ($attrs['total_estimated'] ?? 0),
             'items' => $items,
         ]);
     }
@@ -359,7 +313,6 @@ class PurchaseOrderController extends Controller
             PurchaseOrderItem::where('purchase_order_id', $id)->delete();
             $order->delete();
         } catch (\Throwable $e) {
-            Log::error('Fallo al eliminar OC.', ['order_id' => $id, 'error' => $e->getMessage()]);
             return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'No se pudo eliminar la OC.']);
         }
 

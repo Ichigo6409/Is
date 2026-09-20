@@ -33,9 +33,7 @@ class WarehouseController extends Controller
         $warehouses = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
         $warehousesData = collect($warehouses->items())->map(function ($w) {
-            // Contar ubicaciones de este almacén
             $locationsCount = Location::where('warehouse_id', (string) $w->_id)->count();
-
             return [
                 '_id' => (string) $w->_id,
                 'code' => (string) $w->code,
@@ -46,15 +44,12 @@ class WarehouseController extends Controller
             ];
         })->values()->all();
 
-        // Lista completa de almacenes (para el dropdown de Ubicaciones)
         $allWarehouses = Warehouse::where('business_id', $this->businessId)
             ->orderBy('name', 'asc')
             ->get()
             ->map(fn($w) => ['_id' => (string) $w->_id, 'name' => (string) $w->name, 'code' => (string) $w->code])
-            ->values()
-            ->all();
+            ->values()->all();
 
-        // Ubicaciones (sin paginar aún, las cargamos todas para el dropdown)
         $locations = Location::where('business_id', $this->businessId)
             ->orderBy('created_at', 'desc')
             ->take(200)
@@ -70,13 +65,26 @@ class WarehouseController extends Controller
                     'active' => (bool) $l->active,
                 ];
             })
-            ->values()
-            ->all();
+            ->values()->all();
+
+        // KPIs
+        $totalWarehouses = Warehouse::where('business_id', $this->businessId)->count();
+        $activeWarehouses = Warehouse::where('business_id', $this->businessId)->where('active', true)->count();
+        $totalLocations = Location::where('business_id', $this->businessId)->count();
+        $activeLocations = Location::where('business_id', $this->businessId)->where('active', true)->count();
+
+        $kpis = [
+            ['label' => 'Total almacenes', 'value' => $totalWarehouses],
+            ['label' => 'Activos', 'value' => $activeWarehouses, 'color' => 'success'],
+            ['label' => 'Total ubicaciones', 'value' => $totalLocations],
+            ['label' => 'Ubicaciones activas', 'value' => $activeLocations],
+        ];
 
         return Inertia::render('Equipo4/Almacenes', [
             'warehouses' => $warehousesData,
             'allWarehouses' => $allWarehouses,
             'locations' => $locations,
+            'kpis' => $kpis,
             'pagination' => [
                 'current_page' => $warehouses->currentPage(),
                 'last_page' => $warehouses->lastPage(),
@@ -93,47 +101,29 @@ class WarehouseController extends Controller
     {
         $validated = $request->validated();
         $validated['business_id'] = $this->businessId;
-
         Warehouse::create($validated);
-
-        return redirect()->back()->with('success', 'Almacén creado exitosamente.');
+        return redirect()->route('equipo4.almacenes.index')->with('success', 'Almacén creado exitosamente.');
     }
 
     public function update(UpdateWarehouseRequest $request, string $id): RedirectResponse
     {
-        $warehouse = Warehouse::where('_id', $id)
-            ->where('business_id', $this->businessId)
-            ->first();
-
-        if (!$warehouse) {
-            abort(404, 'Almacén no encontrado.');
-        }
-
+        $warehouse = Warehouse::where('_id', $id)->where('business_id', $this->businessId)->first();
+        if (!$warehouse) abort(404, 'Almacén no encontrado.');
         $warehouse->update($request->validated());
-
-        return redirect()->back()->with('success', 'Almacén actualizado exitosamente.');
+        return redirect()->route('equipo4.almacenes.index')->with('success', 'Almacén actualizado exitosamente.');
     }
 
     public function destroy(string $id): RedirectResponse
     {
-        $warehouse = Warehouse::where('_id', $id)
-            ->where('business_id', $this->businessId)
-            ->first();
+        $warehouse = Warehouse::where('_id', $id)->where('business_id', $this->businessId)->first();
+        if (!$warehouse) abort(404, 'Almacén no encontrado.');
 
-        if (!$warehouse) {
-            abort(404, 'Almacén no encontrado.');
-        }
-
-        // Verificar que no tenga ubicaciones asociadas
         $locationsCount = Location::where('warehouse_id', $id)->count();
         if ($locationsCount > 0) {
-            return redirect()->back()->withErrors([
-                'error' => 'No se puede eliminar: el almacén tiene ' . $locationsCount . ' ubicaciones asociadas. Elimina primero las ubicaciones.'
-            ]);
+            return redirect()->back()->withErrors(['error' => 'No se puede eliminar: el almacén tiene ' . $locationsCount . ' ubicaciones asociadas.']);
         }
 
         $warehouse->delete();
-
-        return redirect()->back()->with('success', 'Almacén eliminado exitosamente.');
+        return redirect()->route('equipo4.almacenes.index')->with('success', 'Almacén eliminado exitosamente.');
     }
 }

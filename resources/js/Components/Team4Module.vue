@@ -7,6 +7,7 @@ const props = defineProps({
   subtitle: { type: String, default: '' },
   columns: { type: Array, required: true },
   rows: { type: Array, default: () => [] },
+  kpis: { type: Array, default: () => [] },
   pagination: {
     type: Object,
     default: () => ({
@@ -93,6 +94,27 @@ const visiblePages = computed(() => {
         <slot name="toolbar">
           <button class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">Nuevo</button>
         </slot>
+      </div>
+    </div>
+
+    <!-- KPIs opcionales -->
+    <div v-if="kpis && kpis.length > 0" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div
+        v-for="(k, i) in kpis"
+        :key="i"
+        class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+      >
+        <span class="text-sm text-slate-500">{{ k.label }}</span>
+        <strong
+          class="mt-2 block text-2xl"
+          :class="k.color === 'danger' ? 'text-rose-600'
+            : k.color === 'warning' ? 'text-amber-600'
+            : k.color === 'success' ? 'text-emerald-600'
+            : 'text-[#00338D]'"
+        >
+          {{ k.value }}
+        </strong>
+        <span v-if="k.hint" class="text-xs text-slate-400">{{ k.hint }}</span>
       </div>
     </div>
 

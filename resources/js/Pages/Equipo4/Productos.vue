@@ -7,6 +7,7 @@ import Team4Module from '../../Components/Team4Module.vue'
 const props = defineProps({
   products: { type: Array, default: () => [] },
   categories: { type: Array, default: () => [] },
+  kpis: { type: Array, default: () => [] },
   pagination: { type: Object, default: () => ({}) },
   filters: { type: Object, default: () => ({}) }
 })
@@ -74,20 +75,21 @@ const confirmDelete = (row) => {
 }
 
 const submitForm = () => {
+  const options = {
+    preserveScroll: true,
+    onSuccess: () => {
+      showModal.value = false
+      form.reset()
+    },
+    onError: (errors) => {
+      console.error('Errores de validación:', errors)
+    },
+  }
+
   if (isEditing.value) {
-    form.put(`/equipo4/productos/${selectedProduct.value._id}`, {
-      onSuccess: () => {
-        showModal.value = false
-        form.reset()
-      }
-    })
+    form.put(`/equipo4/productos/${selectedProduct.value._id}`, options)
   } else {
-    form.post('/equipo4/productos', {
-      onSuccess: () => {
-        showModal.value = false
-        form.reset()
-      }
-    })
+    form.post('/equipo4/productos', options)
   }
 }
 
@@ -109,6 +111,7 @@ const deleteProduct = () => {
       subtitle="Catálogo oficial de productos y souvenirs"
       :columns="columns"
       :rows="formattedProducts"
+      :kpis="kpis"
       :pagination="pagination"
       :filters="filters"
       search-route="/equipo4/productos"
@@ -147,6 +150,13 @@ const deleteProduct = () => {
             {{ isEditing ? 'Editar Producto' : 'Nuevo Producto' }}
           </h2>
           <button @click="showModal = false" class="text-slate-400 hover:text-slate-600 font-bold">&times;</button>
+        </div>
+
+        <div v-if="Object.keys(form.errors).length > 0" class="rounded-lg bg-rose-50 border border-rose-200 p-3">
+          <p class="text-xs font-bold text-rose-800 mb-1">Errores de validación:</p>
+          <ul class="text-xs text-rose-700 list-disc pl-4 space-y-0.5">
+            <li v-for="(err, field) in form.errors" :key="field">{{ err }}</li>
+          </ul>
         </div>
 
         <form @submit.prevent="submitForm" class="space-y-4">

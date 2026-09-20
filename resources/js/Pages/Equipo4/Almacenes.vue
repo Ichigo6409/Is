@@ -8,6 +8,7 @@ const props = defineProps({
   warehouses: { type: Array, default: () => [] },
   allWarehouses: { type: Array, default: () => [] },
   locations: { type: Array, default: () => [] },
+  kpis: { type: Array, default: () => [] },
   pagination: { type: Object, default: () => ({}) },
   filters: { type: Object, default: () => ({}) }
 })
@@ -28,7 +29,6 @@ const locationTypeLabels = {
   SHIPPING: 'Envío'
 }
 
-// ===== MODAL ALMACÉN =====
 const showModal = ref(false)
 const showDeleteModal = ref(false)
 const isEditing = ref(false)
@@ -95,7 +95,7 @@ const deleteWarehouse = () => {
   })
 }
 
-// ===== MODAL UBICACIÓN =====
+// UBICACIONES
 const showLocationModal = ref(false)
 const showLocationDeleteModal = ref(false)
 const isEditingLocation = ref(false)
@@ -128,12 +128,7 @@ const formattedLocations = computed(() => {
 })
 
 const locationPagination = computed(() => ({
-  current_page: 1,
-  last_page: 1,
-  per_page: 200,
-  total: props.locations.length,
-  from: 1,
-  to: props.locations.length
+  current_page: 1, last_page: 1, per_page: 200, total: props.locations.length, from: 1, to: props.locations.length
 }))
 
 const openLocationCreateModal = () => {
@@ -141,9 +136,7 @@ const openLocationCreateModal = () => {
   selectedLocation.value = null
   locationForm.reset()
   locationForm.clearErrors()
-  if (props.allWarehouses.length > 0) {
-    locationForm.warehouse_id = props.allWarehouses[0]._id
-  }
+  if (props.allWarehouses.length > 0) locationForm.warehouse_id = props.allWarehouses[0]._id
   showLocationModal.value = true
 }
 
@@ -192,6 +185,7 @@ const deleteLocation = () => {
       subtitle="Almacenes, bodegas y mostradores del negocio"
       :columns="columns"
       :rows="formattedWarehouses"
+      :kpis="kpis"
       :pagination="pagination"
       :filters="filters"
       search-route="/equipo4/almacenes"
@@ -201,7 +195,6 @@ const deleteLocation = () => {
           + Nuevo Almacén
         </button>
       </template>
-
       <template #actions="{ row }">
         <div class="flex items-center justify-end gap-2">
           <button @click="openEditModal(row)" class="px-3 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition">Editar</button>
@@ -210,7 +203,6 @@ const deleteLocation = () => {
       </template>
     </Team4Module>
 
-    <!-- Sección Ubicaciones -->
     <div class="mt-8">
       <Team4Module
         title="Ubicaciones"
@@ -226,7 +218,6 @@ const deleteLocation = () => {
             + Nueva Ubicación
           </button>
         </template>
-
         <template #actions="{ row }">
           <div class="flex items-center justify-end gap-2">
             <button @click="openLocationEditModal(row)" class="px-3 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition">Editar</button>
@@ -236,27 +227,31 @@ const deleteLocation = () => {
       </Team4Module>
     </div>
 
-    <!-- Modal Almacén -->
     <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg p-6 space-y-4">
         <div class="flex justify-between items-center border-b border-slate-100 pb-3">
           <h2 class="text-lg font-bold text-[#00338D]">{{ isEditing ? 'Editar Almacén' : 'Nuevo Almacén' }}</h2>
           <button @click="showModal = false" class="text-slate-400 hover:text-slate-600 font-bold">&times;</button>
         </div>
+        <div v-if="Object.keys(form.errors).length > 0" class="rounded-lg bg-rose-50 border border-rose-200 p-3">
+          <ul class="text-xs text-rose-700 list-disc pl-4 space-y-0.5">
+            <li v-for="(err, field) in form.errors" :key="field">{{ err }}</li>
+          </ul>
+        </div>
         <form @submit.prevent="submitForm" class="space-y-4">
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Código *</label>
-            <input v-model="form.code" type="text" placeholder="ALM-001" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7] uppercase" />
+            <input v-model="form.code" type="text" placeholder="ALM-001" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
             <p v-if="form.errors.code" class="mt-1 text-xs text-rose-600">{{ form.errors.code }}</p>
           </div>
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Nombre *</label>
-            <input v-model="form.name" type="text" placeholder="Almacén principal" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7]" />
+            <input v-model="form.name" type="text" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
             <p v-if="form.errors.name" class="mt-1 text-xs text-rose-600">{{ form.errors.name }}</p>
           </div>
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Tipo *</label>
-            <select v-model="form.type" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7] bg-white">
+            <select v-model="form.type" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
               <option value="MAIN">Principal</option>
               <option value="STORAGE">Bodega</option>
               <option value="DISPLAY">Mostrador</option>
@@ -264,7 +259,7 @@ const deleteLocation = () => {
             </select>
           </div>
           <div class="flex items-center gap-2">
-            <input id="active" v-model="form.active" type="checkbox" class="rounded border-slate-300 text-[#00338D] focus:ring-[#0284C7]" />
+            <input id="active" v-model="form.active" type="checkbox" class="rounded border-slate-300 text-[#00338D]" />
             <label for="active" class="text-sm text-slate-700">Almacén activo</label>
           </div>
           <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
@@ -280,9 +275,7 @@ const deleteLocation = () => {
     <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4">
         <h3 class="text-lg font-bold text-slate-900">¿Eliminar almacén?</h3>
-        <p class="text-sm text-slate-600">
-          Esta acción eliminará el almacén <strong>{{ selectedWarehouse?.name }}</strong>. Solo se puede eliminar si no tiene ubicaciones asociadas.
-        </p>
+        <p class="text-sm text-slate-600">Esta acción eliminará el almacén <strong>{{ selectedWarehouse?.name }}</strong>. Solo se permite si no tiene ubicaciones asociadas.</p>
         <div class="flex justify-end gap-2 pt-2">
           <button @click="showDeleteModal = false" class="px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition">Cancelar</button>
           <button @click="deleteWarehouse" class="px-4 py-2 text-sm font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition">Eliminar</button>
@@ -290,7 +283,6 @@ const deleteLocation = () => {
       </div>
     </div>
 
-    <!-- Modal Ubicación -->
     <div v-if="showLocationModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg p-6 space-y-4">
         <div class="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -300,21 +292,19 @@ const deleteLocation = () => {
         <form @submit.prevent="submitLocationForm" class="space-y-4">
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Almacén *</label>
-            <select v-model="locationForm.warehouse_id" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7] bg-white">
+            <select v-model="locationForm.warehouse_id" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
               <option value="" disabled>Selecciona un almacén</option>
               <option v-for="wh in allWarehouses" :key="wh._id" :value="wh._id">{{ wh.name }} ({{ wh.code }})</option>
             </select>
-            <p v-if="locationForm.errors.warehouse_id" class="mt-1 text-xs text-rose-600">{{ locationForm.errors.warehouse_id }}</p>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Código *</label>
-              <input v-model="locationForm.code" type="text" placeholder="LOC-001" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7] uppercase" />
-              <p v-if="locationForm.errors.code" class="mt-1 text-xs text-rose-600">{{ locationForm.errors.code }}</p>
+              <input v-model="locationForm.code" type="text" placeholder="LOC-001" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
             </div>
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Tipo *</label>
-              <select v-model="locationForm.type" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7] bg-white">
+              <select v-model="locationForm.type" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
                 <option value="STORAGE">Almacenaje</option>
                 <option value="DISPLAY">Exhibición</option>
                 <option value="RECEIVING">Recepción</option>
@@ -324,16 +314,14 @@ const deleteLocation = () => {
           </div>
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Nombre *</label>
-            <input v-model="locationForm.name" type="text" placeholder="Zona general" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7]" />
-            <p v-if="locationForm.errors.name" class="mt-1 text-xs text-rose-600">{{ locationForm.errors.name }}</p>
+            <input v-model="locationForm.name" type="text" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
           </div>
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Capacidad *</label>
-            <input v-model.number="locationForm.capacity" type="number" min="0" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7]" />
-            <p v-if="locationForm.errors.capacity" class="mt-1 text-xs text-rose-600">{{ locationForm.errors.capacity }}</p>
+            <input v-model.number="locationForm.capacity" type="number" min="0" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
           </div>
           <div class="flex items-center gap-2">
-            <input id="loc-active" v-model="locationForm.active" type="checkbox" class="rounded border-slate-300 text-[#00338D] focus:ring-[#0284C7]" />
+            <input id="loc-active" v-model="locationForm.active" type="checkbox" class="rounded border-slate-300 text-[#00338D]" />
             <label for="loc-active" class="text-sm text-slate-700">Ubicación activa</label>
           </div>
           <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
@@ -349,9 +337,7 @@ const deleteLocation = () => {
     <div v-if="showLocationDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4">
         <h3 class="text-lg font-bold text-slate-900">¿Eliminar ubicación?</h3>
-        <p class="text-sm text-slate-600">
-          Esta acción eliminará la ubicación <strong>{{ selectedLocation?.name }}</strong> ({{ selectedLocation?.code }}).
-        </p>
+        <p class="text-sm text-slate-600">Vas a eliminar <strong>{{ selectedLocation?.name }}</strong> ({{ selectedLocation?.code }}).</p>
         <div class="flex justify-end gap-2 pt-2">
           <button @click="showLocationDeleteModal = false" class="px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition">Cancelar</button>
           <button @click="deleteLocation" class="px-4 py-2 text-sm font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition">Eliminar</button>

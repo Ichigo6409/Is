@@ -49,8 +49,23 @@ class SupplierController extends Controller
             ];
         })->values()->all();
 
+        // KPIs
+        $baseQuery = Supplier::where('business_id', $this->businessId);
+        $total = (clone $baseQuery)->count();
+        $activos = (clone $baseQuery)->where('status', 'ACTIVO')->count();
+        $inactivos = (clone $baseQuery)->where('status', 'INACTIVO')->count();
+        $suspendidos = (clone $baseQuery)->where('status', 'SUSPENDIDO')->count();
+
+        $kpis = [
+            ['label' => 'Total proveedores', 'value' => $total],
+            ['label' => 'Activos', 'value' => $activos, 'color' => 'success'],
+            ['label' => 'Inactivos', 'value' => $inactivos],
+            ['label' => 'Suspendidos', 'value' => $suspendidos, 'color' => $suspendidos > 0 ? 'warning' : 'default'],
+        ];
+
         return Inertia::render('Equipo4/Proveedores', [
             'suppliers' => $suppliersData,
+            'kpis' => $kpis,
             'pagination' => [
                 'current_page' => $suppliers->currentPage(),
                 'last_page' => $suppliers->lastPage(),
@@ -67,39 +82,23 @@ class SupplierController extends Controller
     {
         $validated = $request->validated();
         $validated['business_id'] = $this->businessId;
-
         Supplier::create($validated);
-
-        return redirect()->back()->with('success', 'Proveedor creado exitosamente.');
+        return redirect()->route('equipo4.proveedores.index')->with('success', 'Proveedor creado exitosamente.');
     }
 
     public function update(UpdateSupplierRequest $request, string $id): RedirectResponse
     {
-        $supplier = Supplier::where('_id', $id)
-            ->where('business_id', $this->businessId)
-            ->first();
-
-        if (!$supplier) {
-            abort(404, 'Proveedor no encontrado.');
-        }
-
+        $supplier = Supplier::where('_id', $id)->where('business_id', $this->businessId)->first();
+        if (!$supplier) abort(404, 'Proveedor no encontrado.');
         $supplier->update($request->validated());
-
-        return redirect()->back()->with('success', 'Proveedor actualizado exitosamente.');
+        return redirect()->route('equipo4.proveedores.index')->with('success', 'Proveedor actualizado exitosamente.');
     }
 
     public function destroy(string $id): RedirectResponse
     {
-        $supplier = Supplier::where('_id', $id)
-            ->where('business_id', $this->businessId)
-            ->first();
-
-        if (!$supplier) {
-            abort(404, 'Proveedor no encontrado.');
-        }
-
+        $supplier = Supplier::where('_id', $id)->where('business_id', $this->businessId)->first();
+        if (!$supplier) abort(404, 'Proveedor no encontrado.');
         $supplier->delete();
-
-        return redirect()->back()->with('success', 'Proveedor eliminado exitosamente.');
+        return redirect()->route('equipo4.proveedores.index')->with('success', 'Proveedor eliminado exitosamente.');
     }
 }

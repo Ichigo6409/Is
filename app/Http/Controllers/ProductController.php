@@ -6,10 +6,12 @@ use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
 use App\Models\Product;
 use App\Models\Category;
+use App\Services\ReorderRuleService;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
@@ -17,30 +19,15 @@ class ProductController extends Controller
 
     public function index(Request $request): Response
     {
-        // only_category es opcional: si viene (ej. desde otra vista que
-        // reutilice este mismo listado), filtra por esa categoría. Si no
-        // viene, se listan todos los productos como antes.
-        $onlyCategory = trim((string) $request->query('only_category', ''));
-        $onlyCategory = $onlyCategory !== '' ? $onlyCategory : null;
-
-        return $this->buildProductsIndex($request, $onlyCategory, 'Equipo4/Productos');
+        return $this->buildProductsIndex($request, null);
     }
 
     public function souvenirs(Request $request): Response
     {
-        // Souvenirs NO tiene CRUD propio: es Productos filtrado a
-        // category = 'souvenirs', reutilizando el mismo query/paginación/
-        // búsqueda que index().
-        return $this->buildProductsIndex($request, 'souvenirs', 'Equipo4/Souvenirs');
+        return $this->buildProductsIndex($request, 'souvenirs');
     }
 
-    /**
-     * Construye el listado paginado de productos, opcionalmente filtrado
-     * por categoría, y lo renderiza en la página Inertia indicada.
-     * Centraliza la lógica que comparten index() y souvenirs() para no
-     * duplicar el query, el mapeo de datos ni la paginación.
-     */
-    private function buildProductsIndex(Request $request, ?string $onlyCategory, string $page): Response
+    private function buildProductsIndex(Request $request, ?string $onlyCategory = null): Response
     {
         $q = trim((string) $request->query('q', ''));
         $perPage = 25;
@@ -85,9 +72,46 @@ class ProductController extends Controller
             ->values()
             ->all();
 
-        return Inertia::render($page, [
+        // KPIs usando coleccion directa (evita bugs de Eloquent + Mongo)
+        $collection = DB::connection('mongodb')->getCollection('products');
+        $filter = ['business_id' => $this->businessId];
+        if ($onlyCategory !== null) {
+            $filter['category'] = $onlyCategory;
+        }
+
+        $totalProducts = $collection->countDocuments($filter);
+        $activeProducts = $collection->countDocuments(array_merge($filter, ['active' => true]));
+
+        // Productos con alerta urgente activa
+        $alertsCollection = DB::connection('mongodb')->getCollection('stock_alerts');
+        $productIdsWithAlerts = $alertsCollection->distinct('product_id', [
+            'business_id' => $this->businessId,
+            'status' => 'ACTIVE',
+            'priority' => ['$in' => ['HIGH', 'CRITICAL']],
+        ]);
+
+        $withAlertsCount = 0;
+        if (!empty($productIdsWithAlerts)) {
+            // Filtrar por los productos del negocio (y opcionalmente categoria)
+            $withAlertsCount = $collection->countDocuments(array_merge(
+                $filter,
+                ['_id' => ['$in' => array_map(fn($id) => new \MongoDB\BSON\ObjectId((string) $id), $productIdsWithAlerts)]]
+            ));
+        }
+
+        $kpis = [
+            ['label' => 'Total productos', 'value' => $totalProducts],
+            ['label' => 'Activos', 'value' => $activeProducts, 'color' => 'success'],
+            ['label' => 'Inactivos', 'value' => $totalProducts - $activeProducts],
+            ['label' => 'Con alerta', 'value' => $withAlertsCount, 'color' => $withAlertsCount > 0 ? 'danger' : 'default'],
+        ];
+
+        $view = $onlyCategory === 'souvenirs' ? 'Equipo4/Souvenirs' : 'Equipo4/Productos';
+
+        return Inertia::render($view, [
             'products' => $productsData,
             'categories' => $categories,
+            'kpis' => $kpis,
             'pagination' => [
                 'current_page' => $products->currentPage(),
                 'last_page' => $products->lastPage(),
@@ -100,27 +124,37 @@ class ProductController extends Controller
         ]);
     }
 
-    public function store(StoreProductRequest $request): RedirectResponse
+    public function store(StoreProductRequest $request, ReorderRuleService $reorderService): RedirectResponse
     {
         $validated = $request->validated();
         $validated['business_id'] = $this->businessId;
 
-        Product::create($validated);
+        $product = Product::create($validated);
+
+        try {
+            $reorderService->syncForProduct((string) $product->_id);
+        } catch (\Throwable $e) {
+            // no-op
+        }
 
         return redirect()->back()->with('success', 'Producto creado exitosamente.');
     }
 
-    public function update(UpdateProductRequest $request, string $id): RedirectResponse
+    public function update(UpdateProductRequest $request, string $id, ReorderRuleService $reorderService): RedirectResponse
     {
         $product = Product::where('_id', $id)
             ->where('business_id', $this->businessId)
             ->first();
 
-        if (!$product) {
-            abort(404, 'Producto no encontrado.');
-        }
+        if (!$product) abort(404, 'Producto no encontrado.');
 
         $product->update($request->validated());
+
+        try {
+            $reorderService->syncForProduct($id);
+        } catch (\Throwable $e) {
+            // no-op
+        }
 
         return redirect()->back()->with('success', 'Producto actualizado exitosamente.');
     }
@@ -131,8 +165,17 @@ class ProductController extends Controller
             ->where('business_id', $this->businessId)
             ->first();
 
-        if (!$product) {
-            abort(404, 'Producto no encontrado.');
+        if (!$product) abort(404, 'Producto no encontrado.');
+
+        try {
+            $alerts = app(\App\Services\AlertGeneratorService::class);
+            $rules = \App\Models\ReorderRule::where('product_id', $id)->get();
+            foreach ($rules as $rule) {
+                $alerts->resolveFor((string) $rule->product_id, (string) $rule->location_id);
+            }
+            \App\Models\ReorderRule::where('product_id', $id)->delete();
+        } catch (\Throwable $e) {
+            // no-op
         }
 
         $product->delete();

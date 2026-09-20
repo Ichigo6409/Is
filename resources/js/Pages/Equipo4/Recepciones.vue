@@ -7,6 +7,7 @@ import Team4Module from '../../Components/Team4Module.vue'
 const props = defineProps({
   receipts: { type: Array, default: () => [] },
   receivableOrders: { type: Array, default: () => [] },
+  kpis: { type: Array, default: () => [] },
   pagination: { type: Object, default: () => ({}) },
   filters: { type: Object, default: () => ({}) }
 })
@@ -36,7 +37,7 @@ const form = useForm({
   items: []
 })
 
-const openCreateModal = () => {
+const openCreateModal = async () => {
   form.reset()
   form.clearErrors()
   selectedOrderId.value = ''
@@ -57,17 +58,14 @@ const loadOrderDetails = async () => {
     const data = await response.json()
 
     if (!data.items || data.items.length === 0) {
-      alert('Esta OC no tiene líneas de productos. Edítala primero para agregar productos.')
+      alert('Esta OC no tiene líneas de productos.')
       loadingDetails.value = false
       return
     }
 
     orderDetails.value = data
-
     const quantities = {}
-    data.items.forEach(item => {
-      quantities[item.purchase_order_item_id] = item.quantity
-    })
+    data.items.forEach(item => { quantities[item.purchase_order_item_id] = item.quantity })
     receiptQuantities.value = quantities
   } catch (e) {
     console.error(e)
@@ -79,11 +77,7 @@ const loadOrderDetails = async () => {
 
 const submitReceipt = () => {
   form.clearErrors()
-
-  if (!orderDetails.value) {
-    alert('Primero selecciona una OC')
-    return
-  }
+  if (!orderDetails.value) { alert('Primero selecciona una OC'); return }
 
   form.purchase_order_id = selectedOrderId.value
   form.items = orderDetails.value.items
@@ -94,7 +88,7 @@ const submitReceipt = () => {
     .filter(i => i.quantity > 0)
 
   if (form.items.length === 0) {
-    alert('Debes ingresar al menos una cantidad mayor a 0 para recibir')
+    alert('Debes ingresar al menos una cantidad mayor a 0')
     return
   }
 
@@ -107,9 +101,7 @@ const submitReceipt = () => {
       selectedOrderId.value = ''
       receiptQuantities.value = {}
     },
-    onError: (errors) => {
-      console.error('Errores de recepción:', errors)
-    },
+    onError: (errors) => { console.error('Errores:', errors) },
   })
 }
 </script>
@@ -121,6 +113,7 @@ const submitReceipt = () => {
       subtitle="Recepción de mercancía de órdenes de compra autorizadas"
       :columns="columns"
       :rows="formattedReceipts"
+      :kpis="kpis"
       :pagination="pagination"
       :filters="filters"
       search-route="/equipo4/recepciones"
@@ -140,7 +133,6 @@ const submitReceipt = () => {
         </div>
 
         <div v-if="Object.keys(form.errors).length > 0" class="rounded-lg bg-rose-50 border border-rose-200 p-3">
-          <p class="text-xs font-bold text-rose-800 mb-1">Error:</p>
           <ul class="text-xs text-rose-700 list-disc pl-4 space-y-0.5">
             <li v-for="(err, field) in form.errors" :key="field">{{ err }}</li>
           </ul>
@@ -148,16 +140,16 @@ const submitReceipt = () => {
 
         <div>
           <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Orden de Compra *</label>
-          <select v-model="selectedOrderId" @change="loadOrderDetails" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7] bg-white">
+          <select v-model="selectedOrderId" @change="loadOrderDetails" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
             <option value="" disabled>Selecciona una OC autorizada</option>
             <option v-for="o in receivableOrders" :key="o._id" :value="o._id">{{ o.folio }}</option>
           </select>
           <p v-if="receivableOrders.length === 0" class="mt-1 text-xs text-amber-600">
-            No hay OCs autorizadas pendientes. Primero autoriza una OC desde el módulo de Compras.
+            No hay OCs autorizadas pendientes.
           </p>
         </div>
 
-        <div v-if="loadingDetails" class="text-center py-8 text-slate-500">Cargando líneas de la OC...</div>
+        <div v-if="loadingDetails" class="text-center py-8 text-slate-500">Cargando líneas...</div>
 
         <div v-else-if="orderDetails" class="space-y-4">
           <div class="rounded-lg border border-slate-200 overflow-hidden">
@@ -179,7 +171,7 @@ const submitReceipt = () => {
                   </td>
                   <td class="px-3 py-2 text-slate-700">{{ item.quantity }}</td>
                   <td class="px-3 py-2">
-                    <input v-model.number="receiptQuantities[item.purchase_order_item_id]" type="number" min="0" :max="item.quantity" class="w-full px-2 py-1 text-xs rounded border border-slate-300 focus:border-[#0284C7]" />
+                    <input v-model.number="receiptQuantities[item.purchase_order_item_id]" type="number" min="0" :max="item.quantity" class="w-full px-2 py-1 text-xs rounded border border-slate-300" />
                   </td>
                   <td class="px-3 py-2 text-slate-700">${{ item.unit_cost.toFixed(2) }}</td>
                 </tr>
@@ -189,11 +181,11 @@ const submitReceipt = () => {
 
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Notas</label>
-            <textarea v-model="form.notes" rows="2" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] focus:ring-[#0284C7]" placeholder="Observaciones (opcional)"></textarea>
+            <textarea v-model="form.notes" rows="2" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]"></textarea>
           </div>
 
           <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
-            Al confirmar la recepción, el stock se incrementará automáticamente en la ubicación por defecto. La OC cambiará a estado RECIBIDA_TOTAL.
+            Al confirmar, el stock se incrementará automáticamente y se registrará el costo de cada producto.
           </div>
         </div>
 
