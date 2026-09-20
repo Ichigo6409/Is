@@ -1,6 +1,6 @@
 <script setup>
-import { computed } from 'vue'
 import { usePage } from '@inertiajs/vue3'
+import { computed } from 'vue'
 import logoUrl from '@/../images/campus-digital-logo.png'
 
 const page = usePage()
@@ -46,6 +46,17 @@ const navGroups = [
   },
 ]
 
+function isActive(group) {
+  return group.match(page.url)
+}
+
+// Conteo de alertas urgentes (HIGH/CRITICAL)
+const alertsCount = computed(() => page.props.alertsCount || 0)
+
+const activeGroup = computed(() => {
+  return navGroups.find(g => isActive(g))?.label ?? null
+})
+
 const groupModules = {
   'Catálogo': [
     { label: 'Productos', href: '/equipo4/productos' },
@@ -69,14 +80,6 @@ const groupModules = {
     { label: 'Conteos', href: '/equipo4/conteos' },
   ],
 }
-
-function isActive(group) {
-  return group.match(page.url)
-}
-
-const activeGroup = computed(() => {
-  return navGroups.find(g => isActive(g))?.label ?? null
-})
 
 function isModuleActive(module) {
   return page.url.startsWith(module.href)
@@ -102,6 +105,14 @@ function isModuleActive(module) {
                 : 'inline-flex items-center px-3 py-2 text-sm font-medium text-slate-600 hover:text-[#00338D] hover:bg-[#F5F8FC] rounded-md transition'"
             >
               {{ group.label }}
+              <!-- Badge solo en "Operación" si hay alertas urgentes -->
+              <span
+                v-if="group.label === 'Operación' && alertsCount > 0"
+                class="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-white text-[10px] font-bold"
+                :title="alertsCount + ' alerta(s) urgente(s)'"
+              >
+                {{ alertsCount > 9 ? '9+' : alertsCount }}
+              </span>
             </a>
           </nav>
 
@@ -113,10 +124,7 @@ function isModuleActive(module) {
       </div>
     </header>
 
-    <div
-      v-if="activeGroup && groupModules[activeGroup]"
-      class="bg-white border-b border-slate-200"
-    >
+    <div v-if="activeGroup && groupModules[activeGroup]" class="bg-white border-b border-slate-200">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <nav class="flex gap-6 -mb-px overflow-x-auto">
           <a
@@ -128,6 +136,11 @@ function isModuleActive(module) {
               : 'inline-flex items-center py-3 text-sm font-medium text-slate-500 hover:text-[#00338D] hover:border-b-2 hover:border-slate-300 border-b-2 border-transparent whitespace-nowrap transition'"
           >
             {{ mod.label }}
+            <!-- Punto pequeño en el tab "Alertas" si hay urgentes -->
+            <span
+              v-if="mod.label === 'Alertas' && alertsCount > 0"
+              class="ml-2 w-2 h-2 rounded-full bg-rose-600"
+            ></span>
           </a>
         </nav>
       </div>

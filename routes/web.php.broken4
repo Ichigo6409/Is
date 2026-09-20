@@ -64,7 +64,7 @@ Route::prefix('equipo4')->group(function () {
 
     Route::get('/reservas', [ReservationController::class, 'index'])->name('equipo4.reservas.index');
     Route::post('/reservas', [ReservationController::class, 'store'])->name('equipo4.reservas.store');
-    Route::post('/reservas/{id}/release', [ReservationController::class, 'release'])->name('equipo4.reservas.release');
+    Route::patch('/reservas/{id}/release', [ReservationController::class, 'release'])->name('equipo4.reservas.release');
     Route::post('/reservas/expire-overdue', [ReservationController::class, 'expireOverdue'])->name('equipo4.reservas.expireOverdue');
 
     Route::get('/alertas', [AlertController::class, 'index'])->name('equipo4.alertas.index');

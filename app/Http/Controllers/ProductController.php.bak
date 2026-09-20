@@ -107,7 +107,7 @@ class ProductController extends Controller
 
         Product::create($validated);
 
-        return redirect()->back()->with('success', 'Producto creado exitosamente.');
+        return redirect()->route('equipo4.productos.index')->with('success', 'Producto creado exitosamente.');
     }
 
     public function update(UpdateProductRequest $request, string $id): RedirectResponse
@@ -122,7 +122,7 @@ class ProductController extends Controller
 
         $product->update($request->validated());
 
-        return redirect()->back()->with('success', 'Producto actualizado exitosamente.');
+        return redirect()->route('equipo4.productos.index')->with('success', 'Producto actualizado exitosamente.');
     }
 
     public function destroy(string $id): RedirectResponse
@@ -137,6 +137,6 @@ class ProductController extends Controller
 
         $product->delete();
 
-        return redirect()->back()->with('success', 'Producto eliminado exitosamente.');
+        return redirect()->route('equipo4.productos.index')->with('success', 'Producto eliminado exitosamente.');
     }
 }

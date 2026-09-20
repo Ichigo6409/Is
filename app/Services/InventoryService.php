@@ -13,9 +13,6 @@ class InventoryService
 {
     public function changeStock(array $data): Inventory
     {
-        // Corrección D: se valida el negocio antes de tocar el inventario para
-        // evitar escribir movimientos o existencias asociadas a un business_id
-        // inválido o inexistente.
         app(BusinessService::class)->validate((string) $data['business_id']);
 
         $qty = (int) $data['quantity'];
@@ -24,9 +21,6 @@ class InventoryService
             throw new \InvalidArgumentException('La cantidad no puede ser cero.');
         }
 
-        // Corrección A: el Kardex (stock_movements) es el ledger de inventario.
-        // Sin 'type' los reportes no pueden distinguir entre venta, recepción,
-        // ajuste o transferencia.
         $allowedTypes = ['RECEIPT', 'SALE', 'RETURN_IN', 'RETURN_OUT',
                          'ADJUSTMENT', 'TRANSFER_IN', 'TRANSFER_OUT',
                          'QUARANTINE', 'SHRINKAGE'];
@@ -160,6 +154,18 @@ class InventoryService
                 0,
                 $movementException
             );
+        }
+
+        // NUEVO: sincronizar alertas de reorden tras el cambio de stock.
+        // Se aísla en try/catch para no romper la operación si algo falla.
+        try {
+            app(AlertGeneratorService::class)->syncOne($productId, $locationId);
+        } catch (\Throwable $alertEx) {
+            Log::warning('No se pudo sincronizar alertas tras cambio de stock.', [
+                'product_id' => $productId,
+                'location_id' => $locationId,
+                'error' => $alertEx->getMessage(),
+            ]);
         }
 
         return Inventory::where('_id', $inventoryId)->firstOrFail();

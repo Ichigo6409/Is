@@ -2,18 +2,19 @@
 
 namespace App\Services;
 
-use App\Models\{CustomerReturn, SupplierReturn, StockMovement};
+use App\Models\CustomerReturn;
+use App\Models\SupplierReturn;
+use App\Models\StockMovement;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use MongoDB\BSON\ObjectId;
 use MongoDB\Operation\FindOneAndUpdate;
 
 class ReturnService
 {
     public function supplier(array $data)
     {
-        // Corrección D: se valida el negocio antes de registrar cualquier
-        // devolución a proveedor.
         app(BusinessService::class)->validate((string) $data['business_id']);
 
         $folio = 'DEV-PROV-' . now()->format('YmdHis') . '-' . Str::upper(Str::random(4));
@@ -38,7 +39,9 @@ class ReturnService
         $movementCreated = false;
 
         try {
-            StockMovement::create([
+            $movement = new StockMovement();
+            $movement->_id = new ObjectId();
+            $movement->fill([
                 'business_id' => $businessId,
                 'product_id' => $productId,
                 'variant_id' => $variantId,
@@ -50,18 +53,24 @@ class ReturnService
                 'actor_id' => $data['actor_id'] ?? 'SYSTEM',
                 'correlation_id' => $correlationId,
             ]);
+            $movement->save();
             $movementCreated = true;
 
-            return SupplierReturn::create([
+            $supplierReturn = new SupplierReturn();
+            $supplierReturn->_id = new ObjectId();
+            $supplierReturn->fill([
                 'business_id' => $businessId,
                 'folio' => $folio,
-                'supplier_id' => isset($data['supplier_id']) ? (string) $data['supplier_id'] : null,
+                'supplier_id' => isset($data['supplier_id']) && $data['supplier_id'] ? (string) $data['supplier_id'] : '',
                 'status' => 'RECEIVED',
-                'reason' => $data['reason'],
+                'reason' => (string) $data['reason'],
                 'source_type' => 'MANUAL',
-                'source_reference' => $data['reference'] ?? null,
-                'created_by' => $data['actor_id'] ?? 'SYSTEM',
+                'source_reference' => (string) ($data['reference'] ?? ''),
+                'created_by' => (string) ($data['actor_id'] ?? 'SYSTEM'),
             ]);
+            $supplierReturn->save();
+
+            return $supplierReturn;
         } catch (\Throwable $exception) {
             if ($movementCreated) {
                 try {
@@ -88,8 +97,6 @@ class ReturnService
 
     public function customer(array $data)
     {
-        // Corrección D: se valida el negocio antes de registrar cualquier
-        // devolución de cliente.
         app(BusinessService::class)->validate((string) $data['business_id']);
 
         $folio = 'DEV-CLI-' . now()->format('YmdHis') . '-' . Str::upper(Str::random(4));
@@ -128,7 +135,9 @@ class ReturnService
 
         try {
             if (in_array($resolution, ['RESTOCK', 'QUARANTINE'], true)) {
-                StockMovement::create([
+                $movement = new StockMovement();
+                $movement->_id = new ObjectId();
+                $movement->fill([
                     'business_id' => $businessId,
                     'product_id' => $productId,
                     'variant_id' => $variantId,
@@ -140,20 +149,26 @@ class ReturnService
                     'actor_id' => $data['actor_id'] ?? 'SYSTEM',
                     'correlation_id' => $correlationId,
                 ]);
+                $movement->save();
                 $movementCreated = true;
             }
 
-            return CustomerReturn::create([
+            $customerReturn = new CustomerReturn();
+            $customerReturn->_id = new ObjectId();
+            $customerReturn->fill([
                 'business_id' => $businessId,
                 'folio' => $folio,
-                'customer_id' => isset($data['customer_id']) ? (string) $data['customer_id'] : null,
-                'customer_type' => $data['customer_type'] ?? 'ALUMNO',
+                'customer_id' => (string) ($data['customer_id'] ?? ''),
+                'customer_type' => (string) ($data['customer_type'] ?? 'ALUMNO'),
                 'status' => 'RECEIVED',
-                'reason' => $data['reason'],
-                'sale_reference' => $data['reference'] ?? null,
+                'reason' => (string) $data['reason'],
+                'sale_reference' => (string) ($data['reference'] ?? ''),
                 'resolution' => $resolution,
-                'created_by' => $data['actor_id'] ?? 'SYSTEM',
+                'created_by' => (string) ($data['actor_id'] ?? 'SYSTEM'),
             ]);
+            $customerReturn->save();
+
+            return $customerReturn;
         } catch (\Throwable $exception) {
             if ($movementCreated) {
                 try {
