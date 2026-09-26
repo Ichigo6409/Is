@@ -20,26 +20,28 @@ const alertsCount = computed(() => page.props.alertsCount || 0)
 const currentUser = computed(() => {
   const u = page.props.auth?.user
   return {
-    name: u?.name ?? 'Administrador de inventario',
-    email: u?.email ?? 'admin@campus-digital.mx',
-    initials: u?.initials ?? 'E4',
+    name: u?.name ?? 'Usuario',
+    email: u?.email ?? '',
+    initials: u?.initials ?? 'U',
+    role: u?.role ?? '',
   }
 })
+
+const roleLabels = {
+  admin: 'Administrador',
+  inventory_manager: 'Responsable de inventario',
+  buyer: 'Comprador',
+  auditor: 'Auditor',
+}
+
+const currentRoleLabel = computed(() => roleLabels[currentUser.value.role] || currentUser.value.role || '')
 
 const showingUserMenu = ref(false)
 const userMenuRef = ref(null)
 
 function toggleUserMenu() { showingUserMenu.value = !showingUserMenu.value }
-
-function closeUserMenu(e) {
-  if (userMenuRef.value && !userMenuRef.value.contains(e.target)) {
-    showingUserMenu.value = false
-  }
-}
-
-function closeOnEscape(e) {
-  if (e.key === 'Escape') showingUserMenu.value = false
-}
+function closeUserMenu(e) { if (userMenuRef.value && !userMenuRef.value.contains(e.target)) showingUserMenu.value = false }
+function closeOnEscape(e) { if (e.key === 'Escape') showingUserMenu.value = false }
 
 onMounted(() => {
   document.addEventListener('click', closeUserMenu)
@@ -102,23 +104,14 @@ function isModuleActive(module) { return page.url.startsWith(module.href) }
               <span
                 v-if="group.label === 'Operación' && alertsCount > 0"
                 class="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-white text-[10px] font-bold"
-                :title="alertsCount + ' alerta(s) urgente(s)'"
-              >
-                {{ alertsCount > 9 ? '9+' : alertsCount }}
-              </span>
+              >{{ alertsCount > 9 ? '9+' : alertsCount }}</span>
             </a>
           </nav>
 
           <div ref="userMenuRef" class="relative">
-            <button
-              type="button"
-              @click="toggleUserMenu"
-              class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-600 transition hover:bg-slate-50 focus:outline-none"
-            >
+            <button type="button" @click="toggleUserMenu" class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-600 transition hover:bg-slate-50 focus:outline-none">
               <span class="hidden md:inline">{{ currentUser.name }}</span>
-              <span class="w-9 h-9 rounded-full bg-[#00338D] text-white grid place-items-center text-xs font-bold">
-                {{ currentUser.initials }}
-              </span>
+              <span class="w-9 h-9 rounded-full bg-[#00338D] text-white grid place-items-center text-xs font-bold">{{ currentUser.initials }}</span>
               <svg class="hidden md:inline h-4 w-4 -mr-0.5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
               </svg>
@@ -132,32 +125,15 @@ function isModuleActive(module) { return page.url.startsWith(module.href) }
               leave-from-class="opacity-100 scale-100"
               leave-to-class="opacity-0 scale-95"
             >
-              <div
-                v-show="showingUserMenu"
-                class="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 z-50"
-              >
+              <div v-show="showingUserMenu" class="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 z-50">
                 <div class="px-4 py-3 border-b border-slate-100">
                   <p class="text-sm font-semibold text-slate-800">{{ currentUser.name }}</p>
                   <p class="text-xs text-slate-500 truncate">{{ currentUser.email }}</p>
+                  <p v-if="currentRoleLabel" class="mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#00338D]/10 text-[#00338D]">{{ currentRoleLabel }}</p>
                 </div>
-
-                <a href="/equipo4/perfil" class="block px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
-                  Mi perfil
-                </a>
-                <a href="/equipo4" class="block px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
-                  Configuración
-                </a>
-
+                <a href="/equipo4" class="block px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-50">Mi perfil</a>
                 <div class="border-t border-slate-100 mt-1 pt-1">
-                  <form method="POST" action="/logout">
-                    <input type="hidden" name="_token" :value="page.props.csrfToken || ''">
-                    <button
-                      type="submit"
-                      class="block w-full text-left px-4 py-2 text-sm text-rose-600 transition hover:bg-rose-50"
-                    >
-                      Cerrar sesión
-                    </button>
-                  </form>
+                  <button @click="logout" class="block w-full text-left px-4 py-2 text-sm text-rose-600 transition hover:bg-rose-50">Cerrar sesión</button>
                 </div>
               </div>
             </Transition>
@@ -185,15 +161,20 @@ function isModuleActive(module) { return page.url.startsWith(module.href) }
     </div>
 
     <main>
-      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-        <slot />
-      </div>
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8"><slot /></div>
     </main>
 
     <footer class="border-t border-slate-200 bg-white mt-12">
-      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 text-xs text-slate-500">
-        Campus Digital · Equipo 4 · 2026
-      </div>
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 text-xs text-slate-500">Campus Digital · Equipo 4 · 2026</div>
     </footer>
   </div>
 </template>
+
+<script>
+import { router } from '@inertiajs/vue3'
+export default {
+  methods: {
+    logout() { router.post('/equipo4/dev/clear-user') }
+  }
+}
+</script>

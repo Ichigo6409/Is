@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\IdentityService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -11,7 +12,10 @@ class HandleInertiaRequests extends Middleware
 
     public function share(Request $request): array
     {
-        // Contar alertas urgentes para el badge
+        $identity = app(IdentityService::class);
+        $userId = $identity->resolveCurrentUserId();
+        $sharedUser = $identity->getSharedUser($userId);
+
         $urgentAlertsCount = 0;
         try {
             $urgentAlertsCount = \Illuminate\Support\Facades\DB::connection('mongodb')
@@ -21,31 +25,21 @@ class HandleInertiaRequests extends Middleware
                     'status' => 'ACTIVE',
                     'priority' => ['$in' => ['HIGH', 'CRITICAL']],
                 ]);
-        } catch (\Throwable $e) {
-            $urgentAlertsCount = 0;
-        }
-
-        // Usuario actual (stub hasta que Eq. 1 tenga su API)
-        $currentUser = $request->user();
-        $userData = $currentUser ? [
-            'name' => $currentUser->name ?? 'Administrador de inventario',
-            'email' => $currentUser->email ?? 'admin@campus-digital.mx',
-            'initials' => 'E4',
-            'avatar_url' => null,
-        ] : [
-            'name' => 'Administrador de inventario',
-            'email' => 'admin@campus-digital.mx',
-            'initials' => 'E4',
-            'avatar_url' => null,
-        ];
+        } catch (\Throwable $e) { $urgentAlertsCount = 0; }
 
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $userData,
+                'user' => $sharedUser,
+                'role' => $sharedUser['role'] ?? null,
+                'is_authorized' => $identity->isAuthorized($sharedUser['role'] ?? null),
             ],
             'alertsCount' => $urgentAlertsCount,
             'csrfToken' => csrf_token(),
+            'flash' => [
+                'success' => $request->session()->get('success'),
+                'error' => $request->session()->get('error'),
+            ],
         ];
     }
 }

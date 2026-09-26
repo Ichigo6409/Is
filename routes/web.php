@@ -2,7 +2,6 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Team4Controller;
-use App\Http\Controllers\IntegrationController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\WarehouseController;
@@ -17,8 +16,29 @@ use App\Http\Controllers\ReorderRuleController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\ReturnController;
 use App\Http\Controllers\StockCountController;
+use App\Http\Middleware\EnsureTeam4Role;
 
-Route::prefix('equipo4')->group(function () {
+// Pagina publica de "No autorizado"
+Route::get('/equipo4/not-authorized', function (\Illuminate\Http\Request $request) {
+    return \Inertia\Inertia::render('Equipo4/NotAuthorized', [
+        'reason' => (string) $request->query('reason', 'unknown'),
+    ]);
+})->name('equipo4.not-authorized');
+
+// Rutas DEV (solo local)
+if (app()->environment('local')) {
+    Route::get('/equipo4/dev/switch/{userId}', function (string $userId) {
+        session(['team4_impersonate_user_id' => $userId]);
+        return redirect()->route('equipo4.dashboard');
+    });
+    Route::post('/equipo4/dev/clear-user', function () {
+        session()->forget('team4_impersonate_user_id');
+        return redirect()->route('equipo4.dashboard');
+    });
+}
+
+// Panel admin protegido por rol
+Route::prefix('equipo4')->middleware([EnsureTeam4Role::class])->group(function () {
     Route::get('/', [Team4Controller::class, 'dashboard'])->name('equipo4.dashboard');
 
     Route::get('/productos', [ProductController::class, 'index'])->name('equipo4.productos.index');
@@ -90,6 +110,7 @@ Route::prefix('equipo4')->group(function () {
     Route::delete('/conteos/{id}', [StockCountController::class, 'destroy'])->name('equipo4.conteos.destroy');
 });
 
+// API publica (solo lectura). La API de Eq. 3 esta en Team3ApiServiceProvider.
 Route::prefix('api/equipo4')->group(function () {
     Route::get('/products', [Team4Controller::class, 'products'])->middleware('throttle:60,1');
     Route::get('/warehouses', [Team4Controller::class, 'warehouses'])->middleware('throttle:60,1');
@@ -98,15 +119,4 @@ Route::prefix('api/equipo4')->group(function () {
     Route::get('/movements', [Team4Controller::class, 'movements'])->middleware('throttle:60,1');
     Route::get('/suppliers', [Team4Controller::class, 'suppliers'])->middleware('throttle:60,1');
     Route::get('/purchase-orders', [Team4Controller::class, 'purchaseOrders'])->middleware('throttle:60,1');
-    Route::get('/returns', fn() => response()->json([
-        'supplier' => \App\Models\SupplierReturn::orderBy('created_at', 'desc')->limit(100)->get(),
-        'customer' => \App\Models\CustomerReturn::orderBy('created_at', 'desc')->limit(100)->get(),
-    ]))->middleware('throttle:60,1');
-
-    Route::middleware(['team4.signature', 'throttle:120,1'])->group(function () {
-        Route::get('/integration/availability', [IntegrationController::class, 'availability']);
-        Route::post('/integration/reservations', [IntegrationController::class, 'reserve']);
-        Route::post('/integration/supplier-returns', [IntegrationController::class, 'supplierReturn']);
-        Route::post('/integration/customer-returns', [IntegrationController::class, 'customerReturn']);
-    });
 });
