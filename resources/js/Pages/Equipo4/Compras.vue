@@ -67,6 +67,8 @@ const openCreateModal = () => {
 }
 
 const openEditModal = async (row) => {
+  if (!row._id) { alert('ERROR: la OC no tiene _id.'); return }
+
   isEditing.value = true
   selectedOrder.value = row
   form.clearErrors()
@@ -75,43 +77,65 @@ const openEditModal = async (row) => {
 
   try {
     const response = await fetch(`/equipo4/compras/${row._id}/details`, { headers: { 'Accept': 'application/json' } })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const data = await response.json()
-    form.supplier_id = data.supplier_id
-    form.expected_at = data.expected_at
+    form.supplier_id = data.supplier_id || ''
+    form.expected_at = data.expected_at || ''
     form.notes = data.notes || ''
-    form.status = data.status
-    form.items = data.items.map(i => ({ product_id: i.product_id, quantity: i.quantity, unit_cost: i.unit_cost }))
-  } catch (e) { console.error(e) } finally { loadingDetails.value = false }
+    form.status = data.status || 'SOLICITADA'
+    form.items = (data.items || []).map(i => ({
+      product_id: i.product_id,
+      quantity: i.quantity,
+      unit_cost: i.unit_cost
+    }))
+    if (form.items.length === 0) {
+      form.items = [{ product_id: '', quantity: 1, unit_cost: 0 }]
+    }
+  } catch (e) {
+    console.error('Error al cargar detalles:', e)
+    alert('Error al cargar la OC: ' + e.message)
+    showModal.value = false
+  } finally {
+    loadingDetails.value = false
+  }
 }
 
 const confirmDelete = (row) => { selectedOrder.value = row; showDeleteModal.value = true }
 
 const submitForm = () => {
-  const options = {
-    preserveScroll: true,
-    onSuccess: () => { showModal.value = false; form.reset() },
-    onError: (errors) => { console.error('Errores de validación:', errors) },
-  }
   if (isEditing.value) {
-    form.put(`/equipo4/compras/${selectedOrder.value._id}`, options)
+    if (!selectedOrder.value || !selectedOrder.value._id) { alert('ERROR: no hay OC seleccionada.'); return }
+    form.put(`/equipo4/compras/${selectedOrder.value._id}`, {
+      preserveScroll: true,
+      onSuccess: () => { showModal.value = false; form.reset() },
+      onError: (errors) => console.error('Errores:', errors),
+    })
   } else {
-    form.post('/equipo4/compras', options)
+    form.post('/equipo4/compras', {
+      preserveScroll: true,
+      onSuccess: () => { showModal.value = false; form.reset() },
+      onError: (errors) => console.error('Errores:', errors),
+    })
   }
 }
 
 const deleteOrder = () => {
-  if (!selectedOrder.value) return
-  router.delete(`/equipo4/compras/${selectedOrder.value._id}`, { onSuccess: () => { showDeleteModal.value = false; selectedOrder.value = null } })
+  if (!selectedOrder.value || !selectedOrder.value._id) return
+  router.delete(`/equipo4/compras/${selectedOrder.value._id}`, {
+    onSuccess: () => { showDeleteModal.value = false; selectedOrder.value = null }
+  })
 }
 
 const authorizeOrder = (row) => {
+  if (!row._id) { alert('ERROR: la OC no tiene _id.'); return }
   if (!confirm(`¿Autorizar la OC ${row.folio}?`)) return
-  router.post(`/equipo4/compras/${row._id}/status`, { action: 'autorizar' }, { preserveScroll: true })
+  router.patch(`/equipo4/compras/${row._id}/status`, { action: 'autorizar' }, { preserveScroll: true })
 }
 
 const cancelOrder = (row) => {
+  if (!row._id) { alert('ERROR: la OC no tiene _id.'); return }
   if (!confirm(`¿Cancelar la OC ${row.folio}?`)) return
-  router.post(`/equipo4/compras/${row._id}/status`, { action: 'cancelar' }, { preserveScroll: true })
+  router.patch(`/equipo4/compras/${row._id}/status`, { action: 'cancelar' }, { preserveScroll: true })
 }
 
 const toggleHistory = () => {
@@ -189,7 +213,7 @@ const toggleHistory = () => {
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Proveedor *</label>
               <select v-model="form.supplier_id" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
                 <option value="" disabled>Selecciona un proveedor</option>
-                <option v-for="s in suppliersList" :key="s._id" :value="s._id">{{ s.code }} - {{ s.legal_name }}</option>
+                <option v-for="s in suppliersList" :key="s._id" :value="s._id">{{ s.legal_name }}</option>
               </select>
               <p v-if="form.errors.supplier_id" class="mt-1 text-xs text-rose-600">{{ form.errors.supplier_id }}</p>
             </div>
@@ -254,7 +278,6 @@ const toggleHistory = () => {
                 </tfoot>
               </table>
             </div>
-            <p v-if="form.errors.items" class="mt-1 text-xs text-rose-600">{{ form.errors.items }}</p>
           </div>
 
           <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">

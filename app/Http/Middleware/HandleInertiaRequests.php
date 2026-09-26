@@ -2,10 +2,8 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\StockAlert;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
-use Tighten\Ziggy\Ziggy;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -13,25 +11,41 @@ class HandleInertiaRequests extends Middleware
 
     public function share(Request $request): array
     {
-        // Contar alertas activas con prioridad HIGH o CRITICAL.
-        // Solo estas se consideran "urgentes" y disparan el badge rojo.
+        // Contar alertas urgentes para el badge
         $urgentAlertsCount = 0;
-
         try {
-            $urgentAlertsCount = StockAlert::where('business_id', 'BUS-CD-SOUV-001')
-                ->where('status', 'ACTIVE')
-                ->whereIn('priority', ['HIGH', 'CRITICAL'])
-                ->count();
+            $urgentAlertsCount = \Illuminate\Support\Facades\DB::connection('mongodb')
+                ->getCollection('stock_alerts')
+                ->countDocuments([
+                    'business_id' => 'BUS-CD-SOUV-001',
+                    'status' => 'ACTIVE',
+                    'priority' => ['$in' => ['HIGH', 'CRITICAL']],
+                ]);
         } catch (\Throwable $e) {
             $urgentAlertsCount = 0;
         }
 
+        // Usuario actual (stub hasta que Eq. 1 tenga su API)
+        $currentUser = $request->user();
+        $userData = $currentUser ? [
+            'name' => $currentUser->name ?? 'Administrador de inventario',
+            'email' => $currentUser->email ?? 'admin@campus-digital.mx',
+            'initials' => 'E4',
+            'avatar_url' => null,
+        ] : [
+            'name' => 'Administrador de inventario',
+            'email' => 'admin@campus-digital.mx',
+            'initials' => 'E4',
+            'avatar_url' => null,
+        ];
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $userData,
             ],
             'alertsCount' => $urgentAlertsCount,
+            'csrfToken' => csrf_token(),
         ];
     }
 }

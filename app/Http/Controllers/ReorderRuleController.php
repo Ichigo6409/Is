@@ -2,9 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ReorderRule;
-use App\Models\Product;
-use App\Models\Location;
 use App\Services\AlertGeneratorService;
 use App\Services\ReorderRuleService;
 use Inertia\Inertia;
@@ -12,6 +9,7 @@ use Inertia\Response;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use MongoDB\BSON\ObjectId;
 
 class ReorderRuleController extends Controller
 {
@@ -22,39 +20,22 @@ class ReorderRuleController extends Controller
         return app(AlertController::class)->index($request);
     }
 
-    /**
-     * Sincroniza reglas para TODOS los productos del negocio.
-     * Usa ReorderRuleService::syncForProduct() que crea reglas faltantes
-     * y actualiza min/max de las existentes sin tocar reorder_point manual.
-     */
     public function syncAll(ReorderRuleService $rules): RedirectResponse
     {
-        $products = Product::where('business_id', $this->businessId)->get();
+        $before = DB::connection('mongodb')->getCollection('reorder_rules')->countDocuments(['business_id' => $this->businessId]);
 
-        $createdCount = 0;
-        $updatedCount = 0;
-
-        // Contar reglas antes
-        $beforeCount = ReorderRule::where('business_id', $this->businessId)->count();
-
-        foreach ($products as $product) {
+        foreach (DB::connection('mongodb')->getCollection('products')->find(['business_id' => $this->businessId]) as $product) {
             try {
-                $rules->syncForProduct((string) $product->_id);
-            } catch (\Throwable $e) {
-                // continuar con el siguiente producto
-            }
+                $doc = (array) $product;
+                $rules->syncForProduct((string) ($doc['_id'] ?? ''));
+            } catch (\Throwable $e) {}
         }
 
-        $afterCount = ReorderRule::where('business_id', $this->businessId)->count();
-        $createdCount = max(0, $afterCount - $beforeCount);
-        $updatedCount = $afterCount - $createdCount;
+        $after = DB::connection('mongodb')->getCollection('reorder_rules')->countDocuments(['business_id' => $this->businessId]);
+        $created = max(0, $after - $before);
 
         return redirect()->route('equipo4.alertas.index')
-            ->with('success', sprintf(
-                'Reglas sincronizadas: %d nuevas, %d actualizadas.',
-                $createdCount,
-                $afterCount
-            ));
+            ->with('success', sprintf('Reglas sincronizadas: %d nuevas, %d actualizadas.', $created, $after));
     }
 
     public function update(Request $request, string $id, AlertGeneratorService $alerts): RedirectResponse
@@ -64,59 +45,54 @@ class ReorderRuleController extends Controller
             'active' => 'required|boolean',
         ]);
 
-        $rule = ReorderRule::where('_id', $id)
-            ->where('business_id', $this->businessId)
-            ->first();
+        $ruleDoc = DB::connection('mongodb')->getCollection('reorder_rules')->findOne([
+            '_id' => new ObjectId($id),
+            'business_id' => $this->businessId,
+        ]);
+        if (!$ruleDoc) return redirect()->route('equipo4.alertas.index')->withErrors(['error' => 'Regla no encontrada.']);
+        $rule = (array) $ruleDoc;
 
-        if (!$rule) {
-            return redirect()->route('equipo4.alertas.index')
-                ->withErrors(['error' => 'Regla no encontrada.']);
-        }
+        $productId = (string) ($rule['product_id'] ?? '');
+        $locationId = (string) ($rule['location_id'] ?? '');
 
-        $productId = (string) $rule->product_id;
-        $locationId = (string) $rule->location_id;
-
-        $rule->reorder_point = (int) $validated['reorder_point'];
-        $rule->active = (bool) $validated['active'];
-        $rule->save();
+        DB::connection('mongodb')->getCollection('reorder_rules')->updateOne(
+            ['_id' => new ObjectId($id)],
+            ['$set' => [
+                'reorder_point' => (int) $validated['reorder_point'],
+                'active' => (bool) $validated['active'],
+                'updated_at' => now()->toDateTime(),
+            ]]
+        );
 
         try {
-            if (!$rule->active) {
+            if (!$validated['active']) {
                 $alerts->resolveFor($productId, $locationId);
             } else {
                 $alerts->syncOne($productId, $locationId);
             }
-        } catch (\Throwable $e) {
-            // no-op
-        }
+        } catch (\Throwable $e) {}
 
-        return redirect()->route('equipo4.alertas.index')
-            ->with('success', 'Punto de reorden actualizado.');
+        return redirect()->route('equipo4.alertas.index')->with('success', 'Punto de reorden actualizado.');
     }
 
     public function reset(string $id, ReorderRuleService $rules, AlertGeneratorService $alerts): RedirectResponse
     {
-        $rule = ReorderRule::where('_id', $id)
-            ->where('business_id', $this->businessId)
-            ->first();
+        $ruleDoc = DB::connection('mongodb')->getCollection('reorder_rules')->findOne([
+            '_id' => new ObjectId($id),
+            'business_id' => $this->businessId,
+        ]);
+        if (!$ruleDoc) return redirect()->route('equipo4.alertas.index')->withErrors(['error' => 'Regla no encontrada.']);
+        $rule = (array) $ruleDoc;
 
-        if (!$rule) {
-            return redirect()->route('equipo4.alertas.index')
-                ->withErrors(['error' => 'Regla no encontrada.']);
-        }
-
-        $productId = (string) $rule->product_id;
-        $locationId = (string) $rule->location_id;
+        $productId = (string) ($rule['product_id'] ?? '');
+        $locationId = (string) ($rule['location_id'] ?? '');
 
         $rules->recalculateForProduct($productId);
 
         try {
             $alerts->syncOne($productId, $locationId);
-        } catch (\Throwable $e) {
-            // no-op
-        }
+        } catch (\Throwable $e) {}
 
-        return redirect()->route('equipo4.alertas.index')
-            ->with('success', 'Punto de reorden recalculado con los valores del producto.');
+        return redirect()->route('equipo4.alertas.index')->with('success', 'Punto de reorden recalculado.');
     }
 }

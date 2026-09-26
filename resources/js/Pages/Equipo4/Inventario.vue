@@ -38,6 +38,7 @@ const form = useForm({
 })
 
 const openAdjustModal = (row) => {
+  if (!row._id) { alert('ERROR: el registro no tiene _id.'); return }
   selectedItem.value = row
   form.reset()
   form.clearErrors()
@@ -47,9 +48,11 @@ const openAdjustModal = (row) => {
 }
 
 const submitForm = () => {
+  if (!form.inventory_id) { alert('ERROR: no hay registro seleccionado.'); return }
   form.post('/equipo4/inventario/adjust', {
     preserveScroll: true,
-    onSuccess: () => { showModal.value = false; form.reset() }
+    onSuccess: () => { showModal.value = false; form.reset() },
+    onError: (errors) => console.error('Errores:', errors),
   })
 }
 </script>
@@ -97,12 +100,13 @@ const submitForm = () => {
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Cantidad a ajustar *</label>
             <input v-model.number="form.quantity" type="number" placeholder="Positivo suma, negativo resta" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
+            <p class="mt-1 text-[10px] text-slate-500">Ej: 5 para agregar 5 unidades, -3 para quitar 3</p>
             <p v-if="form.errors.quantity" class="mt-1 text-xs text-rose-600">{{ form.errors.quantity }}</p>
           </div>
 
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Motivo del ajuste *</label>
-            <textarea v-model="form.reason" rows="3" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]"></textarea>
+            <textarea v-model="form.reason" rows="3" placeholder="Ej: Producto dañado, merma, error de captura..." class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]"></textarea>
             <p v-if="form.errors.reason" class="mt-1 text-xs text-rose-600">{{ form.errors.reason }}</p>
           </div>
 

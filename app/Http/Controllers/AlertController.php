@@ -2,10 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\StockAlert;
-use App\Models\Product;
-use App\Models\Location;
-use App\Models\ReorderRule;
 use App\Services\AlertGeneratorService;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -32,67 +28,92 @@ class AlertController extends Controller
         $q = trim((string) $request->query('q', ''));
         $showHistory = $request->boolean('history', false);
 
-        $query = StockAlert::where('business_id', $this->businessId);
-        if (!$showHistory) $query->where('status', 'ACTIVE');
-        if ($q !== '') {
-            $regex = '/' . preg_quote($q, '/') . '/i';
-            $query->where('message', 'regex', $regex);
+        // Mapa de productos y locations
+        $productsMap = [];
+        foreach (DB::connection('mongodb')->getCollection('products')->find(['business_id' => $this->businessId]) as $p) {
+            $doc = (array) $p;
+            $productsMap[(string) ($doc['_id'] ?? '')] = [
+                'sku' => (string) ($doc['sku'] ?? ''),
+                'name' => (string) ($doc['name'] ?? ''),
+            ];
         }
 
-        $alerts = $query->orderBy('created_at', 'desc')->limit(200)->get();
+        $locationsMap = [];
+        foreach (DB::connection('mongodb')->getCollection('locations')->find(['business_id' => $this->businessId]) as $l) {
+            $doc = (array) $l;
+            $locationsMap[(string) ($doc['_id'] ?? '')] = (string) ($doc['name'] ?? '');
+        }
 
-        $productsMap = Product::where('business_id', $this->businessId)->get()->keyBy(fn($p) => (string) $p->_id);
-        $locationsMap = Location::where('business_id', $this->businessId)->get()->keyBy(fn($l) => (string) $l->_id);
+        // === ALERTAS ===
+        $alertFilter = ['business_id' => $this->businessId];
+        if (!$showHistory) $alertFilter['status'] = 'ACTIVE';
+        if ($q !== '') $alertFilter['message'] = ['$regex' => $q, '$options' => 'i'];
 
-        $alertsData = $alerts->map(function ($a) use ($productsMap, $locationsMap) {
-            $attrs = $a->getAttributes();
-            $product = $productsMap->get((string) ($attrs['product_id'] ?? ''));
-            $location = $locationsMap->get((string) ($attrs['location_id'] ?? ''));
+        $alertsData = [];
+        $alertCursor = DB::connection('mongodb')->getCollection('stock_alerts')
+            ->find($alertFilter, ['sort' => ['created_at' => -1], 'limit' => 200]);
+        foreach ($alertCursor as $a) {
+            $doc = (array) $a;
+            $pid = (string) ($doc['product_id'] ?? '');
+            $lid = (string) ($doc['location_id'] ?? '');
+            $p = $productsMap[$pid] ?? null;
 
-            return [
-                '_id' => (string) ($attrs['_id'] ?? ''),
-                'product_sku' => $product ? (string) $product->sku : '—',
-                'product_name' => $product ? (string) $product->name : '—',
-                'location_name' => $location ? (string) $location->name : '—',
-                'current_qty' => (int) ($attrs['current_qty'] ?? 0),
-                'threshold' => (int) ($attrs['threshold'] ?? 0),
-                'priority' => (string) ($attrs['priority'] ?? ''),
-                'status' => (string) ($attrs['status'] ?? ''),
-                'message' => (string) ($attrs['message'] ?? ''),
-                'resolution_reason' => (string) ($attrs['resolution_reason'] ?? ''),
+            $alertsData[] = [
+                '_id' => (string) ($doc['_id'] ?? ''),
+                'product_sku' => $p['sku'] ?? '—',
+                'product_name' => $p['name'] ?? '—',
+                'location_name' => $locationsMap[$lid] ?? '—',
+                'current_qty' => (int) ($doc['current_qty'] ?? 0),
+                'threshold' => (int) ($doc['threshold'] ?? 0),
+                'priority' => (string) ($doc['priority'] ?? ''),
+                'status' => (string) ($doc['status'] ?? ''),
+                'message' => (string) ($doc['message'] ?? ''),
+                'resolution_reason' => (string) ($doc['resolution_reason'] ?? ''),
             ];
-        })->values()->all();
+        }
 
-        $rules = ReorderRule::where('business_id', $this->businessId)->orderBy('created_at', 'desc')->get();
-        $rulesData = $rules->map(function ($r) use ($productsMap, $locationsMap) {
-            $attrs = $r->getAttributes();
-            $product = $productsMap->get((string) ($attrs['product_id'] ?? ''));
-            $location = $locationsMap->get((string) ($attrs['location_id'] ?? ''));
-            return [
-                '_id' => (string) ($attrs['_id'] ?? ''),
-                'product_id' => (string) ($attrs['product_id'] ?? ''),
-                'product_sku' => $product ? (string) $product->sku : '—',
-                'product_name' => $product ? (string) $product->name : '—',
-                'location_id' => (string) ($attrs['location_id'] ?? ''),
-                'location_name' => $location ? (string) $location->name : '—',
-                'min_qty' => (int) ($attrs['min_qty'] ?? 0),
-                'max_qty' => (int) ($attrs['max_qty'] ?? 0),
-                'reorder_point' => (int) ($attrs['reorder_point'] ?? 0),
-                'active' => (bool) ($attrs['active'] ?? false),
+        // === REGLAS DE REORDEN ===
+        $rulesData = [];
+        $ruleCursor = DB::connection('mongodb')->getCollection('reorder_rules')
+            ->find(['business_id' => $this->businessId], ['sort' => ['created_at' => -1]]);
+        foreach ($ruleCursor as $r) {
+            $doc = (array) $r;
+            $pid = (string) ($doc['product_id'] ?? '');
+            $lid = (string) ($doc['location_id'] ?? '');
+            $p = $productsMap[$pid] ?? null;
+
+            $rulesData[] = [
+                '_id' => (string) ($doc['_id'] ?? ''),
+                'product_id' => $pid,
+                'product_sku' => $p['sku'] ?? '—',
+                'product_name' => $p['name'] ?? '—',
+                'location_id' => $lid,
+                'location_name' => $locationsMap[$lid] ?? '—',
+                'min_qty' => (int) ($doc['min_qty'] ?? 0),
+                'max_qty' => (int) ($doc['max_qty'] ?? 0),
+                'reorder_point' => (int) ($doc['reorder_point'] ?? 0),
+                'active' => (bool) ($doc['active'] ?? false),
             ];
-        })->values()->all();
+        }
 
-        $productsList = $productsMap->map(fn($p) => ['_id' => (string) $p->_id, 'sku' => (string) $p->sku, 'name' => (string) $p->name])->values()->all();
-        $locationsList = $locationsMap->map(fn($l) => ['_id' => (string) $l->_id, 'code' => (string) $l->code, 'name' => (string) $l->name])->values()->all();
+        // Listas para dropdowns
+        $productsList = [];
+        foreach ($productsMap as $pid => $p) {
+            $productsList[] = ['_id' => $pid, 'sku' => $p['sku'], 'name' => $p['name']];
+        }
+        $locationsList = [];
+        foreach ($locationsMap as $lid => $name) {
+            $locationsList[] = ['_id' => $lid, 'code' => '', 'name' => $name];
+        }
 
         // KPIs
         $monthStart = new \MongoDB\BSON\UTCDateTime(strtotime(date('Y-m-01')) * 1000);
-        $coll = DB::connection('mongodb')->getCollection('stock_alerts');
+        $alertsColl = DB::connection('mongodb')->getCollection('stock_alerts');
 
-        $activeTotal = $coll->countDocuments(['business_id' => $this->businessId, 'status' => 'ACTIVE']);
-        $critical = $coll->countDocuments(['business_id' => $this->businessId, 'status' => 'ACTIVE', 'priority' => 'CRITICAL']);
-        $high = $coll->countDocuments(['business_id' => $this->businessId, 'status' => 'ACTIVE', 'priority' => 'HIGH']);
-        $resolvedMonth = $coll->countDocuments([
+        $activeTotal = $alertsColl->countDocuments(['business_id' => $this->businessId, 'status' => 'ACTIVE']);
+        $critical = $alertsColl->countDocuments(['business_id' => $this->businessId, 'status' => 'ACTIVE', 'priority' => 'CRITICAL']);
+        $high = $alertsColl->countDocuments(['business_id' => $this->businessId, 'status' => 'ACTIVE', 'priority' => 'HIGH']);
+        $resolvedMonth = $alertsColl->countDocuments([
             'business_id' => $this->businessId,
             'status' => ['$in' => ['RESOLVED', 'DISMISSED']],
             'updated_at' => ['$gte' => $monthStart],
@@ -132,13 +153,13 @@ class AlertController extends Controller
     {
         $validated = $request->validate([
             'reason' => 'required|string|min:5|max:500',
-        ], [
-            'reason.required' => 'Debes indicar el motivo del descarte.',
-            'reason.min' => 'El motivo debe tener al menos 5 caracteres.',
         ]);
 
-        $alert = StockAlert::where('_id', $id)->where('business_id', $this->businessId)->first();
-        if (!$alert) return redirect()->route('equipo4.alertas.index')->withErrors(['error' => 'Alerta no encontrada.']);
+        $alertDoc = DB::connection('mongodb')->getCollection('stock_alerts')->findOne([
+            '_id' => new ObjectId($id),
+            'business_id' => $this->businessId,
+        ]);
+        if (!$alertDoc) return redirect()->route('equipo4.alertas.index')->withErrors(['error' => 'Alerta no encontrada.']);
 
         DB::connection('mongodb')->getCollection('stock_alerts')->updateOne(
             ['_id' => new ObjectId($id)],
