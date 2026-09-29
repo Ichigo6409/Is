@@ -17,6 +17,7 @@ use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\ReturnController;
 use App\Http\Controllers\StockCountController;
 use App\Http\Middleware\EnsureTeam4Role;
+use App\Http\Controllers\CategoryController;
 
 // Pagina publica de "No autorizado"
 Route::get('/equipo4/not-authorized', function (\Illuminate\Http\Request $request) {
@@ -60,6 +61,11 @@ Route::prefix('equipo4')->middleware([EnsureTeam4Role::class])->group(function (
     Route::post('/almacenes', [WarehouseController::class, 'store'])->name('equipo4.almacenes.store');
     Route::put('/almacenes/{id}', [WarehouseController::class, 'update'])->name('equipo4.almacenes.update');
     Route::delete('/almacenes/{id}', [WarehouseController::class, 'destroy'])->name('equipo4.almacenes.destroy');
+
+    Route::get   ('/categorias',      [CategoryController::class, 'index'  ])->name('equipo4.categorias.index');
+Route::post  ('/categorias',      [CategoryController::class, 'store'  ])->name('equipo4.categorias.store');
+Route::put   ('/categorias/{id}', [CategoryController::class, 'update' ])->name('equipo4.categorias.update');
+Route::delete('/categorias/{id}', [CategoryController::class, 'destroy'])->name('equipo4.categorias.destroy');
 
     Route::post('/ubicaciones', [LocationController::class, 'store'])->name('equipo4.ubicaciones.store');
     Route::put('/ubicaciones/{id}', [LocationController::class, 'update'])->name('equipo4.ubicaciones.update');

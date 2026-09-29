@@ -19,7 +19,7 @@ const navGroups = computed(() => {
     {
       label: 'Catálogo',
       href: '/equipo4/productos',
-      match: (url) => url.startsWith('/equipo4/productos') || url.startsWith('/equipo4/souvenirs') || url.startsWith('/equipo4/costos'),
+      match: (url) => url.startsWith('/equipo4/productos') || url.startsWith('/equipo4/souvenirs') || url.startsWith('/equipo4/costos') || url.startsWith('/equipo4/categorias'),
       requires: ['productos.view', 'souvenirs.view', 'costos.view'],
     },
     {
@@ -93,6 +93,7 @@ const allGroupModules = {
     { label: 'Productos', href: '/equipo4/productos', requires: 'productos.view' },
     { label: 'Souvenirs', href: '/equipo4/souvenirs', requires: 'souvenirs.view' },
     { label: 'Costos', href: '/equipo4/costos', requires: 'costos.view' },
+    { label: 'Categorías', href: '/equipo4/categorias', requires: 'productos.view' },
   ],
   'Stock': [
     { label: 'Inventario', href: '/equipo4/inventario', requires: 'inventario.view' },

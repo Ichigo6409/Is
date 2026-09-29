@@ -42,3 +42,9 @@ ta.txt
 /InventoryService.php
 /app/Http/Controllers/controller.php
 *ErrorAction SilentlyContinue*
+# Backups locales (no subir)
+_bak_*/
+*.bak
+*.bak2
+*.bak3
+.last_reservation_id

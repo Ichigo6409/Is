@@ -1,0 +1,78 @@
+services:
+  campus-eq4-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: campus-eq4-app:latest
+    container_name: campus-eq4-app
+    restart: unless-stopped
+    ports:
+      - "8004:80"
+    environment:
+      APP_NAME: "Campus Digital - Equipo 4"
+      APP_ENV: production
+      APP_KEY: base64:z394uNfZ7FVZepPga7WLSt1s8NRYOSTth+3K281kJTQ=
+      APP_DEBUG: "false"
+      APP_URL: http://localhost:8004
+      APP_TIMEZONE: America/Mexico_City
+      APP_LOCALE: es
+      APP_FALLBACK_LOCALE: en
+      APP_FAKER_LOCALE: es_MX
+      ASSET_URL: http://localhost:8004
+
+      LOG_CHANNEL: stderr
+      LOG_LEVEL: warning
+
+      DB_CONNECTION: mongodb
+      DB_URI: mongodb://campus-eq4-mongo:27017
+      DB_DATABASE: campus_digital
+      MONGODB_URI: mongodb://campus-eq4-mongo:27017
+      MONGODB_DATABASE: campus_digital
+
+      CACHE_STORE: file
+      CACHE_PREFIX: campus_eq4
+      SESSION_DRIVER: file
+      SESSION_LIFETIME: "120"
+      QUEUE_CONNECTION: sync
+
+      FILESYSTEM_DISK: local
+      BROADCAST_CONNECTION: log
+
+      TEAM1_STUB_ENABLED: "true"
+      TEAM1_DEFAULT_USER_ID: USR-ADMIN-001
+      TEAM1_API_URL: ""
+      TEAM1_SERVICE_SECRET: ""
+
+      TEAM_SERVICE_SHARED_SECRET: secreto_equipo4_eq3_2026
+      TEAM_SERVICE_ALLOWED_CLOCK_SKEW: "300"
+    depends_on:
+      campus-eq4-mongo:
+        condition: service_healthy
+    networks:
+      - campus-network
+
+  campus-eq4-mongo:
+    image: mongo:8.0
+    container_name: campus-eq4-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - campus-eq4-mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ping:1}).ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - campus-network
+
+volumes:
+  campus-eq4-mongo-data:
+    name: campus-eq4-mongo-data
+
+networks:
+  campus-network:
+    name: campus-network
+    driver: bridge
