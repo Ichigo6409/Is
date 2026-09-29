@@ -26,3 +26,19 @@ dump_*.txt
 mongo_hello.json
 ta.txt
 *.zip
+# ============================================
+# Limpieza - Equipo 4
+# ============================================
+/dump_*.txt
+*.broken
+*.broken2
+*.broken3
+*.broken4
+*.broken5
+*.bak
+*.bak_*
+/query
+/mongo_hello.json
+/InventoryService.php
+/app/Http/Controllers/controller.php
+*ErrorAction SilentlyContinue*

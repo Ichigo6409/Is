@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useForm, router } from '@inertiajs/vue3'
 import Equipo4Layout from '../../Layouts/Equipo4Layout.vue'
 import Team4Module from '../../Components/Team4Module.vue'
+import { usePermissions } from '@/Composables/usePermissions'
 
 const props = defineProps({
   alerts: { type: Array, default: () => [] },
@@ -13,6 +14,10 @@ const props = defineProps({
   kpis: { type: Array, default: () => [] },
   filters: { type: Object, default: () => ({}) }
 })
+
+const { can } = usePermissions()
+const canDiscard = computed(() => can('alertas.discard'))
+const canSync = computed(() => can('alertas.sync'))
 
 const activeTab = ref('alerts')
 
@@ -55,6 +60,7 @@ const selectedRule = ref(null)
 const ruleForm = useForm({ reorder_point: 0, active: true })
 
 const openEditRule = (row) => {
+  if (!canSync.value) return
   selectedRule.value = row
   ruleForm.clearErrors()
   ruleForm.reorder_point = row.reorder_point
@@ -70,12 +76,14 @@ const submitRule = () => {
 }
 
 const resetRule = (row) => {
+  if (!canSync.value) return
   if (!confirm(`¿Recalcular el punto de reorden de ${row.product_sku}?`)) return
   router.post(`/equipo4/reglas-reorden/${row._id}/reset`, {}, { preserveScroll: true })
 }
 
 const syncAllRules = () => {
-  if (!confirm('¿Sincronizar las reglas de reorden? Se crearán las que falten y se actualizarán las existentes (sin tocar el punto de reorden ajustado).')) return
+  if (!canSync.value) return
+  if (!confirm('¿Sincronizar las reglas de reorden?')) return
   router.post('/equipo4/reglas-reorden/sync-all', {}, { preserveScroll: true })
 }
 
@@ -84,6 +92,7 @@ const selectedAlert = ref(null)
 const discardForm = useForm({ reason: '' })
 
 const openDiscardModal = (row) => {
+  if (!canDiscard.value) return
   selectedAlert.value = row
   discardForm.reset()
   discardForm.clearErrors()
@@ -98,6 +107,7 @@ const submitDiscard = () => {
 }
 
 const recalculate = () => {
+  if (!canSync.value) return
   if (!confirm('¿Recalcular las alertas?')) return
   router.post('/equipo4/alertas/generate', {}, { preserveScroll: true })
 }
@@ -110,22 +120,16 @@ const toggleHistory = () => {
 <template>
   <Equipo4Layout>
     <div class="mb-6 flex gap-6 border-b border-slate-200">
-      <button
-        @click="activeTab = 'alerts'"
-        :class="activeTab === 'alerts' ? 'pb-3 text-sm font-semibold text-[#00338D] border-b-2 border-[#00338D] -mb-px' : 'pb-3 text-sm font-medium text-slate-500 hover:text-[#0284C7] transition'"
-      >
+      <button @click="activeTab = 'alerts'" :class="activeTab === 'alerts' ? 'pb-3 text-sm font-semibold text-[#00338D] border-b-2 border-[#00338D] -mb-px' : 'pb-3 text-sm font-medium text-slate-500 hover:text-[#0284C7] transition'">
         Alertas ({{ activeAlertsCount }})
       </button>
-      <button
-        @click="activeTab = 'rules'"
-        :class="activeTab === 'rules' ? 'pb-3 text-sm font-semibold text-[#00338D] border-b-2 border-[#00338D] -mb-px' : 'pb-3 text-sm font-medium text-slate-500 hover:text-[#0284C7] transition'"
-      >
+      <button @click="activeTab = 'rules'" :class="activeTab === 'rules' ? 'pb-3 text-sm font-semibold text-[#00338D] border-b-2 border-[#00338D] -mb-px' : 'pb-3 text-sm font-medium text-slate-500 hover:text-[#0284C7] transition'">
         Reglas de reorden ({{ formattedRules.length }})
       </button>
     </div>
 
     <div v-if="activeTab === 'alerts'">
-      <div class="mb-4 flex justify-end">
+      <div v-if="canDiscard || canSync" class="mb-4 flex justify-end">
         <button @click="toggleHistory" class="text-xs font-semibold text-[#0284C7] hover:underline">
           {{ showHistory ? '← Ver solo activas' : 'Ver historial →' }}
         </button>
@@ -140,10 +144,10 @@ const toggleHistory = () => {
         :filters="filters"
         search-route="/equipo4/alertas"
       >
-        <template #toolbar>
-          <button v-if="!showHistory" @click="recalculate" class="inline-flex items-center px-3 py-2 text-xs font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">Recalcular ahora</button>
+        <template v-if="canSync && !showHistory" #toolbar>
+          <button @click="recalculate" class="inline-flex items-center px-3 py-2 text-xs font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">Recalcular ahora</button>
         </template>
-        <template #actions="{ row }">
+        <template v-if="canDiscard" #actions="{ row }">
           <button v-if="row.status === 'ACTIVE'" @click="openDiscardModal(row)" class="px-3 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition">Descartar</button>
           <span v-else-if="row.status === 'RESOLVED'" class="text-xs text-emerald-600 italic">Resuelta auto</span>
           <span v-else class="text-xs text-slate-400 italic" :title="row.resolution_reason">Descartada</span>
@@ -161,10 +165,10 @@ const toggleHistory = () => {
         :filters="{}"
         search-route="/equipo4/alertas"
       >
-        <template #toolbar>
+        <template v-if="canSync" #toolbar>
           <button @click="syncAllRules" class="inline-flex items-center px-3 py-2 text-xs font-semibold rounded-lg border border-[#0284C7] text-[#0284C7] bg-white hover:bg-slate-50 transition">Sincronizar reglas</button>
         </template>
-        <template #actions="{ row }">
+        <template v-if="canSync" #actions="{ row }">
           <div class="flex items-center justify-end gap-2">
             <button @click="openEditRule(row)" class="px-3 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition">Editar punto</button>
             <button @click="resetRule(row)" class="px-3 py-1 text-xs font-medium rounded border border-[#0284C7] text-[#0284C7] bg-white hover:bg-slate-50 transition">Recalcular</button>
@@ -192,7 +196,7 @@ const toggleHistory = () => {
         <form @submit.prevent="submitRule" class="space-y-4">
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Punto de reorden *</label>
-            <input v-model.number="ruleForm.reorder_point" type="number" min="0" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
+            <input v-model.number="ruleForm.reorder_point" type="number" min="0" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300" />
           </div>
           <div class="flex items-center gap-2">
             <input id="rule-active" v-model="ruleForm.active" type="checkbox" class="rounded border-slate-300 text-[#00338D]" />
@@ -225,7 +229,7 @@ const toggleHistory = () => {
         <form @submit.prevent="submitDiscard" class="space-y-4">
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Motivo del descarte *</label>
-            <textarea v-model="discardForm.reason" rows="3" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]"></textarea>
+            <textarea v-model="discardForm.reason" rows="3" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300"></textarea>
             <p v-if="discardForm.errors.reason" class="mt-1 text-xs text-rose-600">{{ discardForm.errors.reason }}</p>
           </div>
           <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">

@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useForm, router } from '@inertiajs/vue3'
 import Equipo4Layout from '../../Layouts/Equipo4Layout.vue'
 import Team4Module from '../../Components/Team4Module.vue'
+import { usePermissions } from '@/Composables/usePermissions'
 
 const props = defineProps({
   orders: { type: Array, default: () => [] },
@@ -14,14 +15,18 @@ const props = defineProps({
   filters: { type: Object, default: () => ({}) }
 })
 
+const { can } = usePermissions()
+const canCreate = computed(() => can('compras.create'))
+const canUpdate = computed(() => can('compras.update'))
+const canAuthorize = computed(() => can('compras.authorize'))
+const canCancel = computed(() => can('compras.cancel'))
+const canReceive = computed(() => can('recepciones.create'))
+
 const columns = ['Folio', 'Proveedor', 'Estado', 'Total estimado', 'Artículos', 'Entrega esperada']
 
 const statusLabels = {
-  BORRADOR: 'Borrador',
-  SOLICITADA: 'Solicitada',
-  AUTORIZADA: 'Autorizada',
-  RECIBIDA_TOTAL: 'Recibida',
-  CANCELADA: 'Cancelada'
+  BORRADOR: 'Borrador', SOLICITADA: 'Solicitada', AUTORIZADA: 'Autorizada',
+  RECIBIDA_TOTAL: 'Recibida', CANCELADA: 'Cancelada'
 }
 
 const formattedOrders = computed(() => {
@@ -37,17 +42,12 @@ const formattedOrders = computed(() => {
 })
 
 const showModal = ref(false)
-const showDeleteModal = ref(false)
 const isEditing = ref(false)
 const selectedOrder = ref(null)
 const loadingDetails = ref(false)
 
 const form = useForm({
-  supplier_id: '',
-  expected_at: '',
-  notes: '',
-  status: 'SOLICITADA',
-  items: []
+  supplier_id: '', expected_at: '', notes: '', status: 'SOLICITADA', items: []
 })
 
 function addItem() { form.items.push({ product_id: '', quantity: 1, unit_cost: 0 }) }
@@ -57,6 +57,7 @@ function itemSubtotal(item) { return (item.quantity || 0) * (item.unit_cost || 0
 const totalEstimate = computed(() => form.items.reduce((sum, i) => sum + itemSubtotal(i), 0))
 
 const openCreateModal = () => {
+  if (!canCreate.value) return
   isEditing.value = false
   selectedOrder.value = null
   form.reset()
@@ -67,8 +68,7 @@ const openCreateModal = () => {
 }
 
 const openEditModal = async (row) => {
-  if (!row._id) { alert('ERROR: la OC no tiene _id.'); return }
-
+  if (!canUpdate.value || !row._id) return
   isEditing.value = true
   selectedOrder.value = row
   form.clearErrors()
@@ -77,65 +77,37 @@ const openEditModal = async (row) => {
 
   try {
     const response = await fetch(`/equipo4/compras/${row._id}/details`, { headers: { 'Accept': 'application/json' } })
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const data = await response.json()
-    form.supplier_id = data.supplier_id || ''
-    form.expected_at = data.expected_at || ''
+    form.supplier_id = data.supplier_id
+    form.expected_at = data.expected_at
     form.notes = data.notes || ''
-    form.status = data.status || 'SOLICITADA'
-    form.items = (data.items || []).map(i => ({
-      product_id: i.product_id,
-      quantity: i.quantity,
-      unit_cost: i.unit_cost
-    }))
-    if (form.items.length === 0) {
-      form.items = [{ product_id: '', quantity: 1, unit_cost: 0 }]
-    }
-  } catch (e) {
-    console.error('Error al cargar detalles:', e)
-    alert('Error al cargar la OC: ' + e.message)
-    showModal.value = false
-  } finally {
-    loadingDetails.value = false
-  }
+    form.status = data.status
+    form.items = data.items.map(i => ({ product_id: i.product_id, quantity: i.quantity, unit_cost: i.unit_cost }))
+  } catch (e) { console.error(e) } finally { loadingDetails.value = false }
 }
-
-const confirmDelete = (row) => { selectedOrder.value = row; showDeleteModal.value = true }
 
 const submitForm = () => {
-  if (isEditing.value) {
-    if (!selectedOrder.value || !selectedOrder.value._id) { alert('ERROR: no hay OC seleccionada.'); return }
-    form.put(`/equipo4/compras/${selectedOrder.value._id}`, {
-      preserveScroll: true,
-      onSuccess: () => { showModal.value = false; form.reset() },
-      onError: (errors) => console.error('Errores:', errors),
-    })
-  } else {
-    form.post('/equipo4/compras', {
-      preserveScroll: true,
-      onSuccess: () => { showModal.value = false; form.reset() },
-      onError: (errors) => console.error('Errores:', errors),
-    })
+  const options = {
+    preserveScroll: true,
+    onSuccess: () => { showModal.value = false; form.reset() },
   }
-}
-
-const deleteOrder = () => {
-  if (!selectedOrder.value || !selectedOrder.value._id) return
-  router.delete(`/equipo4/compras/${selectedOrder.value._id}`, {
-    onSuccess: () => { showDeleteModal.value = false; selectedOrder.value = null }
-  })
+  if (isEditing.value) {
+    form.put(`/equipo4/compras/${selectedOrder.value._id}`, options)
+  } else {
+    form.post('/equipo4/compras', options)
+  }
 }
 
 const authorizeOrder = (row) => {
-  if (!row._id) { alert('ERROR: la OC no tiene _id.'); return }
+  if (!canAuthorize.value || !row._id) return
   if (!confirm(`¿Autorizar la OC ${row.folio}?`)) return
-  router.patch(`/equipo4/compras/${row._id}/status`, { action: 'autorizar' }, { preserveScroll: true })
+  router.post(`/equipo4/compras/${row._id}/status`, { action: 'autorizar' }, { preserveScroll: true })
 }
 
 const cancelOrder = (row) => {
-  if (!row._id) { alert('ERROR: la OC no tiene _id.'); return }
+  if (!canCancel.value || !row._id) return
   if (!confirm(`¿Cancelar la OC ${row.folio}?`)) return
-  router.patch(`/equipo4/compras/${row._id}/status`, { action: 'cancelar' }, { preserveScroll: true })
+  router.post(`/equipo4/compras/${row._id}/status`, { action: 'cancelar' }, { preserveScroll: true })
 }
 
 const toggleHistory = () => {
@@ -162,27 +134,21 @@ const toggleHistory = () => {
       search-route="/equipo4/compras"
     >
       <template #toolbar>
-        <button v-if="!showHistory" @click="openCreateModal" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">
+        <button v-if="!showHistory && canCreate" @click="openCreateModal" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">
           + Nueva OC
         </button>
       </template>
 
       <template #actions="{ row }">
         <div class="flex items-center justify-end gap-1">
-          <template v-if="row.status === 'BORRADOR'">
-            <button @click="openEditModal(row)" class="px-2 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition">Editar</button>
-            <button @click="authorizeOrder(row)" class="px-2 py-1 text-xs font-medium rounded bg-[#10B981] text-white hover:bg-emerald-700 transition">Autorizar</button>
-            <button @click="cancelOrder(row)" class="px-2 py-1 text-xs font-medium rounded bg-amber-600 text-white hover:bg-amber-700 transition">Cancelar</button>
-            <button @click="confirmDelete(row)" class="px-2 py-1 text-xs font-medium rounded bg-rose-600 text-white hover:bg-rose-700 transition">Eliminar</button>
-          </template>
-          <template v-else-if="row.status === 'SOLICITADA'">
-            <button @click="openEditModal(row)" class="px-2 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition">Editar</button>
-            <button @click="authorizeOrder(row)" class="px-2 py-1 text-xs font-medium rounded bg-[#10B981] text-white hover:bg-emerald-700 transition">Autorizar</button>
-            <button @click="cancelOrder(row)" class="px-2 py-1 text-xs font-medium rounded bg-amber-600 text-white hover:bg-amber-700 transition">Cancelar</button>
+          <template v-if="row.status === 'BORRADOR' || row.status === 'SOLICITADA'">
+            <button v-if="canUpdate" @click="openEditModal(row)" class="px-2 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition">Editar</button>
+            <button v-if="canAuthorize" @click="authorizeOrder(row)" class="px-2 py-1 text-xs font-medium rounded bg-[#10B981] text-white hover:bg-emerald-700 transition">Autorizar</button>
+            <button v-if="canCancel" @click="cancelOrder(row)" class="px-2 py-1 text-xs font-medium rounded bg-amber-600 text-white hover:bg-amber-700 transition">Cancelar</button>
           </template>
           <template v-else-if="row.status === 'AUTORIZADA'">
-            <a href="/equipo4/recepciones" class="px-2 py-1 text-xs font-medium rounded bg-[#00338D] text-white hover:bg-[#0284C7] transition">Recibir</a>
-            <button @click="cancelOrder(row)" class="px-2 py-1 text-xs font-medium rounded bg-amber-600 text-white hover:bg-amber-700 transition">Cancelar</button>
+            <a v-if="canReceive" href="/equipo4/recepciones" class="px-2 py-1 text-xs font-medium rounded bg-[#00338D] text-white hover:bg-[#0284C7] transition">Recibir</a>
+            <button v-if="canCancel" @click="cancelOrder(row)" class="px-2 py-1 text-xs font-medium rounded bg-amber-600 text-white hover:bg-amber-700 transition">Cancelar</button>
           </template>
           <template v-else>
             <span class="text-xs text-slate-400 italic">Sin acciones</span>
@@ -199,7 +165,6 @@ const toggleHistory = () => {
         </div>
 
         <div v-if="Object.keys(form.errors).length > 0" class="rounded-lg bg-rose-50 border border-rose-200 p-3">
-          <p class="text-xs font-bold text-rose-800 mb-1">Errores de validación:</p>
           <ul class="text-xs text-rose-700 list-disc pl-4 space-y-0.5">
             <li v-for="(err, field) in form.errors" :key="field">{{ err }}</li>
           </ul>
@@ -211,20 +176,18 @@ const toggleHistory = () => {
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Proveedor *</label>
-              <select v-model="form.supplier_id" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
+              <select v-model="form.supplier_id" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white">
                 <option value="" disabled>Selecciona un proveedor</option>
-                <option v-for="s in suppliersList" :key="s._id" :value="s._id">{{ s.legal_name }}</option>
+                <option v-for="s in suppliersList" :key="s._id" :value="s._id">{{ s.code }} - {{ s.legal_name }}</option>
               </select>
-              <p v-if="form.errors.supplier_id" class="mt-1 text-xs text-rose-600">{{ form.errors.supplier_id }}</p>
             </div>
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Entrega esperada *</label>
-              <input v-model="form.expected_at" type="date" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
-              <p v-if="form.errors.expected_at" class="mt-1 text-xs text-rose-600">{{ form.errors.expected_at }}</p>
+              <input v-model="form.expected_at" type="date" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300" />
             </div>
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Estado *</label>
-              <select v-model="form.status" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
+              <select v-model="form.status" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white">
                 <option value="BORRADOR">Borrador</option>
                 <option value="SOLICITADA">Solicitada</option>
                 <option v-if="isEditing" value="AUTORIZADA">Autorizada</option>
@@ -234,7 +197,7 @@ const toggleHistory = () => {
 
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Notas</label>
-            <textarea v-model="form.notes" rows="2" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]"></textarea>
+            <textarea v-model="form.notes" rows="2" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300"></textarea>
           </div>
 
           <div class="border-t border-slate-100 pt-4">
@@ -257,7 +220,7 @@ const toggleHistory = () => {
                 <tbody class="divide-y divide-slate-100">
                   <tr v-for="(item, index) in form.items" :key="index">
                     <td class="px-3 py-2">
-                      <select v-model="item.product_id" class="w-full px-2 py-1 text-xs rounded border border-slate-300 focus:border-[#0284C7] bg-white">
+                      <select v-model="item.product_id" class="w-full px-2 py-1 text-xs rounded border border-slate-300 bg-white">
                         <option value="" disabled>Producto</option>
                         <option v-for="p in productsList" :key="p._id" :value="p._id">{{ p.sku }} - {{ p.name }}</option>
                       </select>
@@ -287,17 +250,6 @@ const toggleHistory = () => {
             </button>
           </div>
         </form>
-      </div>
-    </div>
-
-    <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4">
-        <h3 class="text-lg font-bold text-slate-900">¿Eliminar Orden de Compra?</h3>
-        <p class="text-sm text-slate-600">Vas a eliminar la OC <strong>{{ selectedOrder?.folio }}</strong>.</p>
-        <div class="flex justify-end gap-2 pt-2">
-          <button @click="showDeleteModal = false" class="px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition">Cancelar</button>
-          <button @click="deleteOrder" class="px-4 py-2 text-sm font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition">Eliminar</button>
-        </div>
       </div>
     </div>
   </Equipo4Layout>

@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useForm, router } from '@inertiajs/vue3'
 import Equipo4Layout from '../../Layouts/Equipo4Layout.vue'
 import Team4Module from '../../Components/Team4Module.vue'
+import { usePermissions } from '@/Composables/usePermissions'
 
 const props = defineProps({
   receipts: { type: Array, default: () => [] },
@@ -11,6 +12,9 @@ const props = defineProps({
   pagination: { type: Object, default: () => ({}) },
   filters: { type: Object, default: () => ({}) }
 })
+
+const { can } = usePermissions()
+const canCreate = computed(() => can('recepciones.create'))
 
 const columns = ['Folio', 'OC Relacionada', 'Recibido por', 'Estado', 'Fecha recepción']
 
@@ -31,13 +35,10 @@ const selectedOrderId = ref('')
 const orderDetails = ref(null)
 const receiptQuantities = ref({})
 
-const form = useForm({
-  purchase_order_id: '',
-  notes: '',
-  items: []
-})
+const form = useForm({ purchase_order_id: '', notes: '', items: [] })
 
 const openCreateModal = async () => {
+  if (!canCreate.value) return
   form.reset()
   form.clearErrors()
   selectedOrderId.value = ''
@@ -52,9 +53,7 @@ const loadOrderDetails = async () => {
   orderDetails.value = null
 
   try {
-    const response = await fetch(`/equipo4/compras/${selectedOrderId.value}/details`, {
-      headers: { 'Accept': 'application/json' }
-    })
+    const response = await fetch(`/equipo4/compras/${selectedOrderId.value}/details`, { headers: { 'Accept': 'application/json' } })
     const data = await response.json()
 
     if (!data.items || data.items.length === 0) {
@@ -100,8 +99,7 @@ const submitReceipt = () => {
       orderDetails.value = null
       selectedOrderId.value = ''
       receiptQuantities.value = {}
-    },
-    onError: (errors) => { console.error('Errores:', errors) },
+    }
   })
 }
 </script>
@@ -119,7 +117,7 @@ const submitReceipt = () => {
       search-route="/equipo4/recepciones"
     >
       <template #toolbar>
-        <button @click="openCreateModal" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">
+        <button v-if="canCreate" @click="openCreateModal" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">
           + Nueva Recepción
         </button>
       </template>
@@ -140,13 +138,11 @@ const submitReceipt = () => {
 
         <div>
           <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Orden de Compra *</label>
-          <select v-model="selectedOrderId" @change="loadOrderDetails" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
+          <select v-model="selectedOrderId" @change="loadOrderDetails" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white">
             <option value="" disabled>Selecciona una OC autorizada</option>
             <option v-for="o in receivableOrders" :key="o._id" :value="o._id">{{ o.folio }}</option>
           </select>
-          <p v-if="receivableOrders.length === 0" class="mt-1 text-xs text-amber-600">
-            No hay OCs autorizadas pendientes.
-          </p>
+          <p v-if="receivableOrders.length === 0" class="mt-1 text-xs text-amber-600">No hay OCs autorizadas pendientes.</p>
         </div>
 
         <div v-if="loadingDetails" class="text-center py-8 text-slate-500">Cargando líneas...</div>
@@ -181,7 +177,7 @@ const submitReceipt = () => {
 
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Notas</label>
-            <textarea v-model="form.notes" rows="2" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]"></textarea>
+            <textarea v-model="form.notes" rows="2" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300"></textarea>
           </div>
 
           <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">

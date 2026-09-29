@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import Equipo4Layout from '../../Layouts/Equipo4Layout.vue'
 import Team4Module from '../../Components/Team4Module.vue'
+import { usePermissions } from '@/Composables/usePermissions'
 
 const props = defineProps({
   products: { type: Array, default: () => [] },
@@ -11,6 +12,9 @@ const props = defineProps({
   pagination: { type: Object, default: () => ({}) },
   filters: { type: Object, default: () => ({}) }
 })
+
+const { can } = usePermissions()
+const canRegister = computed(() => can('costos.register'))
 
 const columns = ['SKU', 'Producto', 'Último costo', 'Costo promedio', 'Precio sugerido', 'Margen', 'Acciones']
 
@@ -33,15 +37,11 @@ const historyItems = ref([])
 const loadingHistory = ref(false)
 
 const costForm = useForm({
-  product_id: '',
-  cost: 0,
-  source: 'MANUAL',
-  reference: '',
-  notes: '',
-  suggested_price: null
+  product_id: '', cost: 0, source: 'MANUAL', reference: '', notes: '', suggested_price: null
 })
 
 const openCostModal = (row) => {
+  if (!canRegister.value) return
   selectedProduct.value = row
   costForm.reset()
   costForm.clearErrors()
@@ -84,7 +84,7 @@ const openHistory = async (row) => {
     >
       <template #actions="{ row }">
         <div class="flex items-center justify-end gap-2">
-          <button @click="openCostModal(row)" class="px-3 py-1 text-xs font-medium rounded bg-[#00338D] text-white hover:bg-[#0284C7] transition">+ Costo</button>
+          <button v-if="canRegister" @click="openCostModal(row)" class="px-3 py-1 text-xs font-medium rounded bg-[#00338D] text-white hover:bg-[#0284C7] transition">+ Costo</button>
           <button @click="openHistory(row)" class="px-3 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition">Historial</button>
         </div>
       </template>

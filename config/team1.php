@@ -8,6 +8,13 @@ return [
     'api_timeout' => (int) env('TEAM1_TIMEOUT', 5),
     'cache_ttl' => (int) env('TEAM1_CACHE_TTL', 60),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Roles autorizados en el Eq. 4
+    |--------------------------------------------------------------------------
+    | Roles canonicos que el Eq. 4 acepta. Cualquier rol fuera de esta lista
+    | se considera no autorizado.
+    */
     'allowed_roles' => [
         'admin',
         'inventory_manager',
@@ -15,6 +22,49 @@ return [
         'auditor',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Diccionario de mapeo de roles (Eq. 1 -> Eq. 4)
+    |--------------------------------------------------------------------------
+    | Cuando el Eq. 1 exponga sus roles, van a venir con su propia nomenclatura.
+    | Este diccionario mapea CUALQUIER variante al rol canonico del Eq. 4.
+    |
+    | Ejemplo: si el Eq. 1 devuelve "ADMIN_GENERAL" o "Administrador" o
+    | "superadmin", todos se mapean a 'admin'.
+    */
+    'role_map' => [
+
+        'admin' => [
+            'admin', 'administrador', 'ADMIN', 'ADMINISTRADOR',
+            'ADMIN_GENERAL', 'admin_general', 'SUPERADMIN', 'superadmin',
+            'ADMINISTRATOR', 'administrator',
+        ],
+
+        'inventory_manager' => [
+            'inventory_manager', 'inventory-manager', 'INVENTORY_MANAGER',
+            'gestor_inventario', 'GESTOR_INVENTARIO', 'responsable_inventario',
+            'RESPONSABLE_INVENTARIO', 'inventory', 'INVENTORY',
+            'almacenista', 'ALMACENISTA',
+        ],
+
+        'buyer' => [
+            'buyer', 'BUYER', 'comprador', 'COMPRADOR',
+            'purchasing', 'PURCHASING', 'purchasing_manager',
+            'PURCHASING_MANAGER', 'abastecedor', 'ABASTECEDOR',
+        ],
+
+        'auditor' => [
+            'auditor', 'AUDITOR', 'reviewer', 'REVIEWER',
+            'auditoria', 'AUDITORIA', 'auditor_lectura',
+        ],
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Usuarios stub (modo dev)
+    |--------------------------------------------------------------------------
+    */
     'users' => [
         'USR-ADMIN-001' => ['name' => 'Jose Arreguin', 'email' => '23030824@itcelaya.edu.mx', 'role' => 'admin'],
         'USR-INV-001' => ['name' => 'Ana Martinez', 'email' => 'ana.inv@campus.mx', 'role' => 'inventory_manager'],

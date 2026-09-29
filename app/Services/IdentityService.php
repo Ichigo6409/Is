@@ -22,10 +22,42 @@ class IdentityService
         return $this->fetchFromTeam1($userId);
     }
 
+    /**
+     * Devuelve el rol canonico (admin, inventory_manager, buyer, auditor)
+     * mapeando el rol crudo que devuelve el Eq. 1 al diccionario local.
+     */
     public function getRole(string $userId): ?string
     {
         $user = $this->getUser($userId);
-        return $user['role'] ?? null;
+        if ($user === null) return null;
+        return $this->normalizeRole((string) ($user['role'] ?? ''));
+    }
+
+    /**
+     * Normaliza cualquier variante de rol al canonico local.
+     * Ej: "ADMIN_GENERAL" -> "admin"; "gestor_inventario" -> "inventory_manager".
+     * Devuelve null si no se puede mapear.
+     */
+    public function normalizeRole(string $rawRole): ?string
+    {
+        $raw = trim($rawRole);
+        if ($raw === '') return null;
+
+        $map = (array) config('team1.role_map', []);
+
+        foreach ($map as $canonical => $aliases) {
+            if (in_array($raw, (array) $aliases, true)) return $canonical;
+        }
+
+        // Fallback: matcheo case-insensitive
+        $rawLower = mb_strtolower($raw);
+        foreach ($map as $canonical => $aliases) {
+            foreach ((array) $aliases as $alias) {
+                if (mb_strtolower($alias) === $rawLower) return $canonical;
+            }
+        }
+
+        return null;
     }
 
     public function isAuthorized(?string $role): bool
@@ -35,16 +67,40 @@ class IdentityService
         return in_array($role, $allowed, true);
     }
 
+    /**
+     * Devuelve la lista de permisos del rol (con wildcard '*' para admin).
+     */
+    public function getPermissions(?string $role): array
+    {
+        if ($role === null || $role === '') return [];
+        $roles = (array) config('team4_permissions.roles', []);
+        if (!isset($roles[$role])) return [];
+        return (array) ($roles[$role]['permissions'] ?? []);
+    }
+
+    /**
+     * Devuelve los KPIs visibles para el rol.
+     */
+    public function getDashboardKpis(?string $role): array
+    {
+        if ($role === null || $role === '') return [];
+        $kpis = (array) config('team4_permissions.dashboard_kpis', []);
+        return (array) ($kpis[$role] ?? []);
+    }
+
     public function getSharedUser(string $userId): ?array
     {
         $user = $this->getUser($userId);
         if ($user === null) return null;
 
+        $canonicalRole = $this->normalizeRole((string) ($user['role'] ?? ''));
+
         return [
             'id' => $userId,
             'name' => (string) ($user['name'] ?? 'Usuario'),
             'email' => (string) ($user['email'] ?? ''),
-            'role' => (string) ($user['role'] ?? ''),
+            'role' => (string) ($canonicalRole ?? ''),
+            'role_raw' => (string) ($user['role'] ?? ''),
             'initials' => $this->initialsFrom((string) ($user['name'] ?? 'U')),
         ];
     }

@@ -16,6 +16,10 @@ class HandleInertiaRequests extends Middleware
         $userId = $identity->resolveCurrentUserId();
         $sharedUser = $identity->getSharedUser($userId);
 
+        $role = $sharedUser['role'] ?? null;
+        $permissions = $identity->getPermissions($role);
+        $dashboardKpis = $identity->getDashboardKpis($role);
+
         $urgentAlertsCount = 0;
         try {
             $urgentAlertsCount = \Illuminate\Support\Facades\DB::connection('mongodb')
@@ -31,8 +35,10 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $sharedUser,
-                'role' => $sharedUser['role'] ?? null,
-                'is_authorized' => $identity->isAuthorized($sharedUser['role'] ?? null),
+                'role' => $role,
+                'is_authorized' => $identity->isAuthorized($role),
+                'permissions' => $permissions,
+                'dashboard_kpis' => $dashboardKpis,
             ],
             'alertsCount' => $urgentAlertsCount,
             'csrfToken' => csrf_token(),

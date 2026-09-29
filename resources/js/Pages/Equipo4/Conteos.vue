@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useForm, router } from '@inertiajs/vue3'
 import Equipo4Layout from '../../Layouts/Equipo4Layout.vue'
 import Team4Module from '../../Components/Team4Module.vue'
+import { usePermissions } from '@/Composables/usePermissions'
 
 const props = defineProps({
   counts: { type: Array, default: () => [] },
@@ -12,7 +13,17 @@ const props = defineProps({
   filters: { type: Object, default: () => ({}) }
 })
 
-const columns = ['Folio', 'Almacén', 'Estado', 'Responsable', 'Diferencias', 'Notas']
+const { can } = usePermissions()
+const canCreate = computed(() => can('conteos.create'))
+const canCapture = computed(() => can('conteos.capture'))
+const canClose = computed(() => can('conteos.close'))
+const canDelete = computed(() => can('conteos.delete'))
+const hasAnyAction = computed(() => canCapture.value || canDelete.value || canClose.value)
+
+const columns = computed(() => {
+  const base = ['Folio', 'Almacén', 'Estado', 'Responsable', 'Diferencias', 'Notas']
+  return hasAnyAction.value ? [...base, 'Acciones'] : base
+})
 
 const statusLabels = { DRAFT: 'Borrador', CLOSED: 'Cerrado' }
 
@@ -38,6 +49,7 @@ const loadingCapture = ref(false)
 const createForm = useForm({ warehouse_id: '', notes: '' })
 
 const openCreateModal = () => {
+  if (!canCreate.value) return
   createForm.reset()
   createForm.clearErrors()
   if (props.warehousesList.length > 0) createForm.warehouse_id = props.warehousesList[0]._id
@@ -65,7 +77,7 @@ const openCaptureModal = async (row) => {
 }
 
 const saveCapture = () => {
-  if (!selectedCount.value) return
+  if (!selectedCount.value || !canCapture.value) return
   const items = captureItems.value.map(i => ({ item_id: i._id, counted_qty: Number(i.counted_qty_input) || 0 }))
   router.post(`/equipo4/conteos/${selectedCount.value._id}/capture`, { items }, {
     preserveScroll: true,
@@ -74,7 +86,7 @@ const saveCapture = () => {
 }
 
 const closeCount = () => {
-  if (!selectedCount.value) return
+  if (!selectedCount.value || !canClose.value) return
   const alerts = captureItems.value.filter(i => hasAlert(i) !== null).length
   let msg = `¿Cerrar el conteo ${selectedCount.value.folio} y aplicar los ajustes?`
   if (alerts > 0) msg = `⚠️ Hay ${alerts} diferencia(s) sospechosa(s). ¿Seguro que quieres cerrar?`
@@ -85,7 +97,12 @@ const closeCount = () => {
   })
 }
 
-const confirmDelete = (row) => { selectedCount.value = row; showDeleteModal.value = true }
+const confirmDelete = (row) => {
+  if (!canDelete.value) return
+  selectedCount.value = row
+  showDeleteModal.value = true
+}
+
 const deleteCount = () => {
   if (!selectedCount.value) return
   router.delete(`/equipo4/conteos/${selectedCount.value._id}`, {
@@ -135,16 +152,16 @@ const alertText = (item) => {
       search-route="/equipo4/conteos"
     >
       <template #toolbar>
-        <button @click="openCreateModal" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">
+        <button v-if="canCreate" @click="openCreateModal" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">
           + Nuevo Conteo
         </button>
       </template>
 
-      <template #actions="{ row }">
+      <template v-if="hasAnyAction" #actions="{ row }">
         <div class="flex items-center justify-end gap-2">
           <template v-if="row.status === 'DRAFT'">
-            <button @click="openCaptureModal(row)" class="px-3 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition">Capturar</button>
-            <button @click="confirmDelete(row)" class="px-3 py-1 text-xs font-medium rounded bg-rose-600 text-white hover:bg-rose-700 transition">Eliminar</button>
+            <button v-if="canCapture" @click="openCaptureModal(row)" class="px-3 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition">Capturar</button>
+            <button v-if="canDelete" @click="confirmDelete(row)" class="px-3 py-1 text-xs font-medium rounded bg-rose-600 text-white hover:bg-rose-700 transition">Eliminar</button>
           </template>
           <template v-else>
             <span class="text-xs text-slate-400 italic">Cerrado</span>
@@ -167,14 +184,14 @@ const alertText = (item) => {
         <form @submit.prevent="submitCreate" class="space-y-4">
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Almacén *</label>
-            <select v-model="createForm.warehouse_id" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
+            <select v-model="createForm.warehouse_id" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white">
               <option value="" disabled>Selecciona un almacén</option>
               <option v-for="w in warehousesList" :key="w._id" :value="w._id">{{ w.code }} - {{ w.name }}</option>
             </select>
           </div>
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Notas</label>
-            <textarea v-model="createForm.notes" rows="2" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]"></textarea>
+            <textarea v-model="createForm.notes" rows="2" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300"></textarea>
           </div>
           <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <button type="button" @click="showCreateModal = false" class="px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition">Cancelar</button>
@@ -215,15 +232,13 @@ const alertText = (item) => {
                     <td class="px-3 py-2 text-right text-slate-600">{{ item.expected_qty }}</td>
                     <td class="px-3 py-2 text-right text-slate-400 text-xs">{{ item.stock_max }}</td>
                     <td class="px-3 py-2">
-                      <input v-model.number="item.counted_qty_input" type="number" min="0" class="w-full px-2 py-1 text-xs rounded border border-slate-300 text-right" />
+                      <input v-model.number="item.counted_qty_input" type="number" min="0" :disabled="!canCapture" class="w-full px-2 py-1 text-xs rounded border border-slate-300 text-right disabled:bg-slate-50" />
                     </td>
                     <td class="px-3 py-2 text-right font-semibold" :class="calculatedDifference(item) === 0 ? 'text-emerald-600' : 'text-rose-600'">
                       {{ calculatedDifference(item) > 0 ? '+' : '' }}{{ calculatedDifference(item) }}
                     </td>
                     <td class="px-3 py-2 text-xs">
-                      <span v-if="alertText(item)" :class="hasAlert(item) === 'critical' ? 'text-rose-700 font-bold' : 'text-amber-700 font-semibold'">
-                        {{ alertText(item) }}
-                      </span>
+                      <span v-if="alertText(item)" :class="hasAlert(item) === 'critical' ? 'text-rose-700 font-bold' : 'text-amber-700 font-semibold'">{{ alertText(item) }}</span>
                     </td>
                   </tr>
                   <tr v-if="captureItems.length === 0"><td colspan="7" class="px-3 py-4 text-center text-xs text-slate-500">Sin items.</td></tr>
@@ -233,8 +248,8 @@ const alertText = (item) => {
           </div>
           <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <button type="button" @click="showCaptureModal = false" class="px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition">Cancelar</button>
-            <button type="button" @click="saveCapture" class="px-4 py-2 text-sm font-semibold rounded-lg border border-[#0284C7] text-[#0284C7] bg-white hover:bg-slate-50 transition">Guardar captura</button>
-            <button type="button" @click="closeCount" class="px-4 py-2 text-sm font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">Cerrar y aplicar</button>
+            <button v-if="canCapture" type="button" @click="saveCapture" class="px-4 py-2 text-sm font-semibold rounded-lg border border-[#0284C7] text-[#0284C7] bg-white hover:bg-slate-50 transition">Guardar captura</button>
+            <button v-if="canClose" type="button" @click="closeCount" class="px-4 py-2 text-sm font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">Cerrar y aplicar</button>
           </div>
         </div>
       </div>

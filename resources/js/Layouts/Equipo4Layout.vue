@@ -2,16 +2,48 @@
 import { usePage } from '@inertiajs/vue3'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import logoUrl from '@/../images/campus-digital-logo.png'
+import { usePermissions } from '@/Composables/usePermissions'
 
 const page = usePage()
+const { can, hasAnyPermission } = usePermissions()
 
-const navGroups = [
-  { label: 'Dashboard', href: '/equipo4', match: (url) => url === '/equipo4' },
-  { label: 'Catálogo', href: '/equipo4/productos', match: (url) => url.startsWith('/equipo4/productos') || url.startsWith('/equipo4/souvenirs') || url.startsWith('/equipo4/costos') },
-  { label: 'Stock', href: '/equipo4/inventario', match: (url) => url.startsWith('/equipo4/inventario') || url.startsWith('/equipo4/almacenes') || url.startsWith('/equipo4/kardex') || url.startsWith('/equipo4/reservas') },
-  { label: 'Compras', href: '/equipo4/proveedores', match: (url) => url.startsWith('/equipo4/proveedores') || url.startsWith('/equipo4/compras') || url.startsWith('/equipo4/recepciones') },
-  { label: 'Operación', href: '/equipo4/devoluciones', match: (url) => url.startsWith('/equipo4/devoluciones') || url.startsWith('/equipo4/alertas') || url.startsWith('/equipo4/conteos') },
-]
+// Nav groups con permiso requerido (al menos 1)
+const navGroups = computed(() => {
+  const all = [
+    {
+      label: 'Dashboard',
+      href: '/equipo4',
+      match: (url) => url === '/equipo4',
+      requires: ['dashboard.view'],
+    },
+    {
+      label: 'Catálogo',
+      href: '/equipo4/productos',
+      match: (url) => url.startsWith('/equipo4/productos') || url.startsWith('/equipo4/souvenirs') || url.startsWith('/equipo4/costos'),
+      requires: ['productos.view', 'souvenirs.view', 'costos.view'],
+    },
+    {
+      label: 'Stock',
+      href: '/equipo4/inventario',
+      match: (url) => url.startsWith('/equipo4/inventario') || url.startsWith('/equipo4/almacenes') || url.startsWith('/equipo4/kardex') || url.startsWith('/equipo4/reservas'),
+      requires: ['inventario.view', 'almacenes.view', 'kardex.view', 'reservas.view'],
+    },
+    {
+      label: 'Compras',
+      href: '/equipo4/proveedores',
+      match: (url) => url.startsWith('/equipo4/proveedores') || url.startsWith('/equipo4/compras') || url.startsWith('/equipo4/recepciones'),
+      requires: ['proveedores.view', 'compras.view', 'recepciones.view'],
+    },
+    {
+      label: 'Operación',
+      href: '/equipo4/devoluciones',
+      match: (url) => url.startsWith('/equipo4/devoluciones') || url.startsWith('/equipo4/alertas') || url.startsWith('/equipo4/conteos'),
+      requires: ['devoluciones.view', 'alertas.view', 'conteos.view'],
+    },
+  ]
+
+  return all.filter(g => hasAnyPermission(g.requires))
+})
 
 function isActive(group) { return group.match(page.url) }
 
@@ -53,33 +85,45 @@ onUnmounted(() => {
   document.removeEventListener('keydown', closeOnEscape)
 })
 
-const activeGroup = computed(() => navGroups.find(g => isActive(g))?.label ?? null)
+const activeGroup = computed(() => navGroups.value.find(g => isActive(g))?.label ?? null)
 
-const groupModules = {
+// Subtabs por grupo con permiso requerido
+const allGroupModules = {
   'Catálogo': [
-    { label: 'Productos', href: '/equipo4/productos' },
-    { label: 'Souvenirs', href: '/equipo4/souvenirs' },
-    { label: 'Costos', href: '/equipo4/costos' },
+    { label: 'Productos', href: '/equipo4/productos', requires: 'productos.view' },
+    { label: 'Souvenirs', href: '/equipo4/souvenirs', requires: 'souvenirs.view' },
+    { label: 'Costos', href: '/equipo4/costos', requires: 'costos.view' },
   ],
   'Stock': [
-    { label: 'Inventario', href: '/equipo4/inventario' },
-    { label: 'Almacenes', href: '/equipo4/almacenes' },
-    { label: 'Kardex', href: '/equipo4/kardex' },
-    { label: 'Reservas', href: '/equipo4/reservas' },
+    { label: 'Inventario', href: '/equipo4/inventario', requires: 'inventario.view' },
+    { label: 'Almacenes', href: '/equipo4/almacenes', requires: 'almacenes.view' },
+    { label: 'Kardex', href: '/equipo4/kardex', requires: 'kardex.view' },
+    { label: 'Reservas', href: '/equipo4/reservas', requires: 'reservas.view' },
   ],
   'Compras': [
-    { label: 'Proveedores', href: '/equipo4/proveedores' },
-    { label: 'Compras', href: '/equipo4/compras' },
-    { label: 'Recepciones', href: '/equipo4/recepciones' },
+    { label: 'Proveedores', href: '/equipo4/proveedores', requires: 'proveedores.view' },
+    { label: 'Compras', href: '/equipo4/compras', requires: 'compras.view' },
+    { label: 'Recepciones', href: '/equipo4/recepciones', requires: 'recepciones.view' },
   ],
   'Operación': [
-    { label: 'Devoluciones', href: '/equipo4/devoluciones' },
-    { label: 'Alertas', href: '/equipo4/alertas' },
-    { label: 'Conteos', href: '/equipo4/conteos' },
+    { label: 'Devoluciones', href: '/equipo4/devoluciones', requires: 'devoluciones.view' },
+    { label: 'Alertas', href: '/equipo4/alertas', requires: 'alertas.view' },
+    { label: 'Conteos', href: '/equipo4/conteos', requires: 'conteos.view' },
   ],
 }
 
+const groupModules = computed(() => {
+  const result = {}
+  for (const [group, modules] of Object.entries(allGroupModules)) {
+    result[group] = modules.filter(m => can(m.requires))
+  }
+  return result
+})
+
 function isModuleActive(module) { return page.url.startsWith(module.href) }
+
+// Solo mostrar el badge de alertas si el usuario puede ver alertas
+const showAlertsBadge = computed(() => can('alertas.view') && alertsCount.value > 0)
 </script>
 
 <template>
@@ -102,16 +146,28 @@ function isModuleActive(module) { return page.url.startsWith(module.href) }
             >
               {{ group.label }}
               <span
-                v-if="group.label === 'Operación' && alertsCount > 0"
+                v-if="group.label === 'Operación' && showAlertsBadge"
                 class="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-white text-[10px] font-bold"
-              >{{ alertsCount > 9 ? '9+' : alertsCount }}</span>
+                :title="alertsCount + ' alerta(s) urgente(s)'"
+              >
+                {{ alertsCount > 9 ? '9+' : alertsCount }}
+              </span>
             </a>
           </nav>
 
           <div ref="userMenuRef" class="relative">
-            <button type="button" @click="toggleUserMenu" class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-600 transition hover:bg-slate-50 focus:outline-none">
-              <span class="hidden md:inline">{{ currentUser.name }}</span>
-              <span class="w-9 h-9 rounded-full bg-[#00338D] text-white grid place-items-center text-xs font-bold">{{ currentUser.initials }}</span>
+            <button
+              type="button"
+              @click="toggleUserMenu"
+              class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-600 transition hover:bg-slate-50 focus:outline-none"
+            >
+              <div class="hidden md:flex flex-col items-end leading-tight">
+                <span class="text-sm font-medium text-slate-800">{{ currentUser.name }}</span>
+                <span class="text-[10px] text-slate-500">{{ currentRoleLabel }}</span>
+              </div>
+              <span class="w-9 h-9 rounded-full bg-[#00338D] text-white grid place-items-center text-xs font-bold">
+                {{ currentUser.initials }}
+              </span>
               <svg class="hidden md:inline h-4 w-4 -mr-0.5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
               </svg>
@@ -125,16 +181,19 @@ function isModuleActive(module) { return page.url.startsWith(module.href) }
               leave-from-class="opacity-100 scale-100"
               leave-to-class="opacity-0 scale-95"
             >
-              <div v-show="showingUserMenu" class="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 z-50">
+              <div
+                v-show="showingUserMenu"
+                class="absolute right-0 mt-2 w-64 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 z-50"
+              >
                 <div class="px-4 py-3 border-b border-slate-100">
                   <p class="text-sm font-semibold text-slate-800">{{ currentUser.name }}</p>
                   <p class="text-xs text-slate-500 truncate">{{ currentUser.email }}</p>
-                  <p v-if="currentRoleLabel" class="mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#00338D]/10 text-[#00338D]">{{ currentRoleLabel }}</p>
+                  <p class="text-[10px] text-[#0284C7] font-semibold mt-1">{{ currentRoleLabel }}</p>
                 </div>
-                <a href="/equipo4" class="block px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-50">Mi perfil</a>
-                <div class="border-t border-slate-100 mt-1 pt-1">
-                  <button @click="logout" class="block w-full text-left px-4 py-2 text-sm text-rose-600 transition hover:bg-rose-50">Cerrar sesión</button>
-                </div>
+
+                <a href="/equipo4" class="block px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+                  Inicio
+                </a>
               </div>
             </Transition>
           </div>
@@ -142,7 +201,7 @@ function isModuleActive(module) { return page.url.startsWith(module.href) }
       </div>
     </header>
 
-    <div v-if="activeGroup && groupModules[activeGroup]" class="bg-white border-b border-slate-200">
+    <div v-if="activeGroup && groupModules[activeGroup] && groupModules[activeGroup].length > 0" class="bg-white border-b border-slate-200">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <nav class="flex gap-6 -mb-px overflow-x-auto">
           <a
@@ -154,27 +213,22 @@ function isModuleActive(module) { return page.url.startsWith(module.href) }
               : 'inline-flex items-center py-3 text-sm font-medium text-slate-500 hover:text-[#00338D] hover:border-b-2 hover:border-slate-300 border-b-2 border-transparent whitespace-nowrap transition'"
           >
             {{ mod.label }}
-            <span v-if="mod.label === 'Alertas' && alertsCount > 0" class="ml-2 w-2 h-2 rounded-full bg-rose-600"></span>
+            <span v-if="mod.label === 'Alertas' && showAlertsBadge" class="ml-2 w-2 h-2 rounded-full bg-rose-600"></span>
           </a>
         </nav>
       </div>
     </div>
 
     <main>
-      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8"><slot /></div>
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        <slot />
+      </div>
     </main>
 
     <footer class="border-t border-slate-200 bg-white mt-12">
-      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 text-xs text-slate-500">Campus Digital · Equipo 4 · 2026</div>
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 text-xs text-slate-500">
+        Campus Digital · Equipo 4 · 2026
+      </div>
     </footer>
   </div>
 </template>
-
-<script>
-import { router } from '@inertiajs/vue3'
-export default {
-  methods: {
-    logout() { router.post('/equipo4/dev/clear-user') }
-  }
-}
-</script>

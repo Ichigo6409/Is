@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useForm, router } from '@inertiajs/vue3'
 import Equipo4Layout from '../../Layouts/Equipo4Layout.vue'
 import Team4Module from '../../Components/Team4Module.vue'
+import { usePermissions } from '@/Composables/usePermissions'
 
 const props = defineProps({
   warehouses: { type: Array, default: () => [] },
@@ -13,33 +14,17 @@ const props = defineProps({
   filters: { type: Object, default: () => ({}) }
 })
 
-const columns = ['Código', 'Almacén', 'Tipo', 'Ubicaciones', 'Estado']
+const { can } = usePermissions()
+const canCreate = computed(() => can('almacenes.create'))
+const canUpdate = computed(() => can('almacenes.update'))
+const canDelete = computed(() => can('almacenes.delete'))
+const hasAnyAction = computed(() => canUpdate.value || canDelete.value)
 
-const warehouseTypeLabels = {
-  MAIN: 'Principal',
-  STORAGE: 'Bodega',
-  DISPLAY: 'Mostrador',
-  CONSIGNMENT: 'Consignación'
-}
+const warehouseColumns = ['Código', 'Almacén', 'Tipo', 'Ubicaciones', 'Estado']
+const locationColumns = ['Código', 'Ubicación', 'Almacén', 'Tipo', 'Capacidad', 'Estado']
 
-const locationTypeLabels = {
-  STORAGE: 'Almacenaje',
-  DISPLAY: 'Exhibición',
-  RECEIVING: 'Recepción',
-  SHIPPING: 'Envío'
-}
-
-const showModal = ref(false)
-const showDeleteModal = ref(false)
-const isEditing = ref(false)
-const selectedWarehouse = ref(null)
-
-const form = useForm({
-  code: '',
-  name: '',
-  type: 'STORAGE',
-  active: true
-})
+const warehouseTypeLabels = { MAIN: 'Principal', STORAGE: 'Bodega', DISPLAY: 'Mostrador', CONSIGNMENT: 'Consignación' }
+const locationTypeLabels = { STORAGE: 'Almacenaje', DISPLAY: 'Exhibición', RECEIVING: 'Recepción', SHIPPING: 'Envío' }
 
 const formattedWarehouses = computed(() => {
   return props.warehouses.map(w => ({
@@ -52,7 +37,35 @@ const formattedWarehouses = computed(() => {
   }))
 })
 
+const formattedLocations = computed(() => {
+  return props.locations.map(l => {
+    const wh = props.allWarehouses.find(w => w._id === l.warehouse_id)
+    return {
+      ...l,
+      'Código': l.code,
+      'Ubicación': l.name,
+      'Almacén': wh ? wh.name : 'Desconocido',
+      'Tipo': locationTypeLabels[l.type] || l.type,
+      'Capacidad': l.capacity,
+      'Estado': l.active ? 'Activo' : 'Inactivo'
+    }
+  })
+})
+
+const locationPagination = computed(() => ({
+  current_page: 1, last_page: 1, per_page: 200, total: props.locations.length, from: 1, to: props.locations.length
+}))
+
+// Warehouse modals
+const showModal = ref(false)
+const showDeleteModal = ref(false)
+const isEditing = ref(false)
+const selectedWarehouse = ref(null)
+
+const form = useForm({ code: '', name: '', type: 'STORAGE', active: true })
+
 const openCreateModal = () => {
+  if (!canCreate.value) return
   isEditing.value = false
   selectedWarehouse.value = null
   form.reset()
@@ -61,6 +74,7 @@ const openCreateModal = () => {
 }
 
 const openEditModal = (row) => {
+  if (!row._id) return
   isEditing.value = true
   selectedWarehouse.value = row
   form.clearErrors()
@@ -72,6 +86,7 @@ const openEditModal = (row) => {
 }
 
 const confirmDelete = (row) => {
+  if (!row._id) return
   selectedWarehouse.value = row
   showDeleteModal.value = true
 }
@@ -95,43 +110,16 @@ const deleteWarehouse = () => {
   })
 }
 
-// UBICACIONES
+// Location modals
 const showLocationModal = ref(false)
 const showLocationDeleteModal = ref(false)
 const isEditingLocation = ref(false)
 const selectedLocation = ref(null)
 
-const locationForm = useForm({
-  warehouse_id: '',
-  code: '',
-  name: '',
-  type: 'STORAGE',
-  capacity: 0,
-  active: true
-})
-
-const locationColumns = ['Código', 'Ubicación', 'Almacén', 'Tipo', 'Capacidad', 'Estado']
-
-const formattedLocations = computed(() => {
-  return props.locations.map(l => {
-    const wh = props.allWarehouses.find(w => w._id === l.warehouse_id)
-    return {
-      ...l,
-      'Código': l.code,
-      'Ubicación': l.name,
-      'Almacén': wh ? wh.name : 'Desconocido',
-      'Tipo': locationTypeLabels[l.type] || l.type,
-      'Capacidad': l.capacity,
-      'Estado': l.active ? 'Activo' : 'Inactivo'
-    }
-  })
-})
-
-const locationPagination = computed(() => ({
-  current_page: 1, last_page: 1, per_page: 200, total: props.locations.length, from: 1, to: props.locations.length
-}))
+const locationForm = useForm({ warehouse_id: '', code: '', name: '', type: 'STORAGE', capacity: 0, active: true })
 
 const openLocationCreateModal = () => {
+  if (!canCreate.value) return
   isEditingLocation.value = false
   selectedLocation.value = null
   locationForm.reset()
@@ -141,6 +129,7 @@ const openLocationCreateModal = () => {
 }
 
 const openLocationEditModal = (row) => {
+  if (!row._id) return
   isEditingLocation.value = true
   selectedLocation.value = row
   locationForm.clearErrors()
@@ -154,6 +143,7 @@ const openLocationEditModal = (row) => {
 }
 
 const confirmLocationDelete = (row) => {
+  if (!row._id) return
   selectedLocation.value = row
   showLocationDeleteModal.value = true
 }
@@ -183,7 +173,7 @@ const deleteLocation = () => {
     <Team4Module
       title="Almacenes"
       subtitle="Almacenes, bodegas y mostradores del negocio"
-      :columns="columns"
+      :columns="warehouseColumns"
       :rows="formattedWarehouses"
       :kpis="kpis"
       :pagination="pagination"
@@ -191,15 +181,16 @@ const deleteLocation = () => {
       search-route="/equipo4/almacenes"
     >
       <template #toolbar>
-        <button @click="openCreateModal" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">
+        <button v-if="canCreate" @click="openCreateModal" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">
           + Nuevo Almacén
         </button>
       </template>
       <template #actions="{ row }">
-        <div class="flex items-center justify-end gap-2">
-          <button @click="openEditModal(row)" class="px-3 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition">Editar</button>
-          <button @click="confirmDelete(row)" class="px-3 py-1 text-xs font-medium rounded bg-rose-600 text-white hover:bg-rose-700 transition">Eliminar</button>
+        <div v-if="hasAnyAction" class="flex items-center justify-end gap-2">
+          <button v-if="canUpdate" @click="openEditModal(row)" class="px-3 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition">Editar</button>
+          <button v-if="canDelete" @click="confirmDelete(row)" class="px-3 py-1 text-xs font-medium rounded bg-rose-600 text-white hover:bg-rose-700 transition">Eliminar</button>
         </div>
+        <span v-else class="text-xs text-slate-400 italic">Solo lectura</span>
       </template>
     </Team4Module>
 
@@ -214,19 +205,21 @@ const deleteLocation = () => {
         search-route="/equipo4/almacenes"
       >
         <template #toolbar>
-          <button @click="openLocationCreateModal" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">
+          <button v-if="canCreate" @click="openLocationCreateModal" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">
             + Nueva Ubicación
           </button>
         </template>
         <template #actions="{ row }">
-          <div class="flex items-center justify-end gap-2">
-            <button @click="openLocationEditModal(row)" class="px-3 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition">Editar</button>
-            <button @click="confirmLocationDelete(row)" class="px-3 py-1 text-xs font-medium rounded bg-rose-600 text-white hover:bg-rose-700 transition">Eliminar</button>
+          <div v-if="hasAnyAction" class="flex items-center justify-end gap-2">
+            <button v-if="canUpdate" @click="openLocationEditModal(row)" class="px-3 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition">Editar</button>
+            <button v-if="canDelete" @click="confirmLocationDelete(row)" class="px-3 py-1 text-xs font-medium rounded bg-rose-600 text-white hover:bg-rose-700 transition">Eliminar</button>
           </div>
+          <span v-else class="text-xs text-slate-400 italic">Solo lectura</span>
         </template>
       </Team4Module>
     </div>
 
+    <!-- Modal Almacén -->
     <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg p-6 space-y-4">
         <div class="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -241,17 +234,15 @@ const deleteLocation = () => {
         <form @submit.prevent="submitForm" class="space-y-4">
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Código *</label>
-            <input v-model="form.code" type="text" placeholder="ALM-001" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
-            <p v-if="form.errors.code" class="mt-1 text-xs text-rose-600">{{ form.errors.code }}</p>
+            <input v-model="form.code" type="text" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300" />
           </div>
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Nombre *</label>
-            <input v-model="form.name" type="text" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
-            <p v-if="form.errors.name" class="mt-1 text-xs text-rose-600">{{ form.errors.name }}</p>
+            <input v-model="form.name" type="text" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300" />
           </div>
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Tipo *</label>
-            <select v-model="form.type" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
+            <select v-model="form.type" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white">
               <option value="MAIN">Principal</option>
               <option value="STORAGE">Bodega</option>
               <option value="DISPLAY">Mostrador</option>
@@ -283,6 +274,7 @@ const deleteLocation = () => {
       </div>
     </div>
 
+    <!-- Modal Ubicación -->
     <div v-if="showLocationModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg p-6 space-y-4">
         <div class="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -292,7 +284,7 @@ const deleteLocation = () => {
         <form @submit.prevent="submitLocationForm" class="space-y-4">
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Almacén *</label>
-            <select v-model="locationForm.warehouse_id" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
+            <select v-model="locationForm.warehouse_id" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white">
               <option value="" disabled>Selecciona un almacén</option>
               <option v-for="wh in allWarehouses" :key="wh._id" :value="wh._id">{{ wh.name }} ({{ wh.code }})</option>
             </select>
@@ -300,11 +292,11 @@ const deleteLocation = () => {
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Código *</label>
-              <input v-model="locationForm.code" type="text" placeholder="LOC-001" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
+              <input v-model="locationForm.code" type="text" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300" />
             </div>
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Tipo *</label>
-              <select v-model="locationForm.type" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
+              <select v-model="locationForm.type" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white">
                 <option value="STORAGE">Almacenaje</option>
                 <option value="DISPLAY">Exhibición</option>
                 <option value="RECEIVING">Recepción</option>
@@ -314,11 +306,11 @@ const deleteLocation = () => {
           </div>
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Nombre *</label>
-            <input v-model="locationForm.name" type="text" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
+            <input v-model="locationForm.name" type="text" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300" />
           </div>
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Capacidad *</label>
-            <input v-model.number="locationForm.capacity" type="number" min="0" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
+            <input v-model.number="locationForm.capacity" type="number" min="0" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300" />
           </div>
           <div class="flex items-center gap-2">
             <input id="loc-active" v-model="locationForm.active" type="checkbox" class="rounded border-slate-300 text-[#00338D]" />

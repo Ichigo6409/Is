@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useForm, router } from '@inertiajs/vue3'
 import Equipo4Layout from '../../Layouts/Equipo4Layout.vue'
 import Team4Module from '../../Components/Team4Module.vue'
+import { usePermissions } from '@/Composables/usePermissions'
 
 const props = defineProps({
   reservations: { type: Array, default: () => [] },
@@ -13,6 +14,10 @@ const props = defineProps({
   pagination: { type: Object, default: () => ({}) },
   filters: { type: Object, default: () => ({}) }
 })
+
+const { can } = usePermissions()
+const canCreate = computed(() => can('reservas.create'))
+const canRelease = computed(() => can('reservas.release'))
 
 const columns = ['Referencia', 'SKU', 'Producto', 'Ubicación', 'Cantidad', 'Origen', 'Expira', 'Estado']
 const statusLabels = { RESERVED: 'Reservada', CONFIRMED: 'Confirmada', RELEASED: 'Liberada', REJECTED: 'Rechazada' }
@@ -33,12 +38,7 @@ const formattedReservations = computed(() => {
 
 const showCreateModal = ref(false)
 const form = useForm({
-  product_id: '',
-  location_id: '',
-  quantity: 1,
-  source: 'MANUAL',
-  external_reference: '',
-  expires_at: ''
+  product_id: '', location_id: '', quantity: 1, source: 'MANUAL', external_reference: '', expires_at: ''
 })
 
 const defaultExpiresAt = () => {
@@ -48,6 +48,7 @@ const defaultExpiresAt = () => {
 }
 
 const openCreateModal = () => {
+  if (!canCreate.value) return
   form.reset()
   form.clearErrors()
   form.quantity = 1
@@ -65,13 +66,15 @@ const submitForm = () => {
 }
 
 const releaseReservation = (row) => {
+  if (!canRelease.value) return
   const id = row.reservation_id || row._id
-  if (!id) { alert('Error: la reserva no tiene identificador.'); return }
+  if (!id) return
   if (!confirm(`¿Liberar la reserva ${row.Referencia}?`)) return
   router.post(`/equipo4/reservas/${id}/release`, {}, { preserveScroll: true })
 }
 
 const expireOverdue = () => {
+  if (!canRelease.value) return
   if (!confirm('¿Liberar todas las reservas vencidas?')) return
   router.post('/equipo4/reservas/expire-overdue', {}, { preserveScroll: true })
 }
@@ -99,11 +102,11 @@ const toggleHistory = () => {
       :filters="filters"
       search-route="/equipo4/reservas"
     >
-      <template #toolbar>
-        <button v-if="!showHistory" @click="expireOverdue" class="inline-flex items-center px-3 py-2 text-xs font-semibold rounded-lg border border-[#0284C7] text-[#0284C7] bg-white hover:bg-slate-50 transition">Expirar vencidas</button>
-        <button v-if="!showHistory" @click="openCreateModal" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">+ Nueva Reserva</button>
+      <template v-if="!showHistory && (canCreate || canRelease)" #toolbar>
+        <button v-if="canRelease" @click="expireOverdue" class="inline-flex items-center px-3 py-2 text-xs font-semibold rounded-lg border border-[#0284C7] text-[#0284C7] bg-white hover:bg-slate-50 transition">Expirar vencidas</button>
+        <button v-if="canCreate" @click="openCreateModal" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">+ Nueva Reserva</button>
       </template>
-      <template #actions="{ row }">
+      <template v-if="canRelease" #actions="{ row }">
         <button v-if="row.status === 'RESERVED'" @click="releaseReservation(row)" class="px-3 py-1 text-xs font-medium rounded bg-amber-600 text-white hover:bg-amber-700 transition">Liberar</button>
         <span v-else class="text-xs text-slate-400 italic">{{ statusLabels[row.status] || row.status }}</span>
       </template>
@@ -123,14 +126,14 @@ const toggleHistory = () => {
         <form @submit.prevent="submitForm" class="space-y-4">
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Producto *</label>
-            <select v-model="form.product_id" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
+            <select v-model="form.product_id" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white">
               <option value="" disabled>Selecciona un producto</option>
               <option v-for="p in productsList" :key="p._id" :value="p._id">{{ p.sku }} - {{ p.name }}</option>
             </select>
           </div>
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Ubicación *</label>
-            <select v-model="form.location_id" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
+            <select v-model="form.location_id" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white">
               <option value="" disabled>Selecciona una ubicación</option>
               <option v-for="l in locationsList" :key="l._id" :value="l._id">{{ l.code }} - {{ l.name }}</option>
             </select>
@@ -138,11 +141,11 @@ const toggleHistory = () => {
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Cantidad *</label>
-              <input v-model.number="form.quantity" type="number" min="1" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
+              <input v-model.number="form.quantity" type="number" min="1" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300" />
             </div>
             <div>
               <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Origen</label>
-              <select v-model="form.source" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7] bg-white">
+              <select v-model="form.source" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white">
                 <option value="MANUAL">Manual</option>
                 <option value="CHECKOUT">Checkout</option>
                 <option value="REWARD">Recompensa</option>
@@ -153,11 +156,11 @@ const toggleHistory = () => {
           </div>
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Referencia (opcional)</label>
-            <input v-model="form.external_reference" type="text" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
+            <input v-model="form.external_reference" type="text" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300" />
           </div>
           <div>
             <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Expira el *</label>
-            <input v-model="form.expires_at" type="datetime-local" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-[#0284C7]" />
+            <input v-model="form.expires_at" type="datetime-local" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300" />
           </div>
           <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <button type="button" @click="showCreateModal = false" class="px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition">Cancelar</button>
