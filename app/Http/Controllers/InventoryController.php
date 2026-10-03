@@ -13,7 +13,12 @@ use MongoDB\BSON\ObjectId;
 
 class InventoryController extends Controller
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     public function index(Request $request): Response
     {
@@ -138,8 +143,8 @@ class InventoryController extends Controller
     {
         $validated = $request->validate([
             'inventory_id' => 'required|string',
-            'quantity' => 'required|integer|not_in:0',
-            'reason' => 'required|string|max:500',
+            'quantity' => 'required|integer',
+            'reason' => 'required|string|min:3|max:500',
         ]);
 
         $invDoc = DB::connection('mongodb')->getCollection('inventories')->findOne([
@@ -148,7 +153,7 @@ class InventoryController extends Controller
         ]);
 
         if (!$invDoc) {
-            return redirect()->route('equipo4.inventario.index')->withErrors(['error' => 'Registro de inventario no encontrado.']);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'Registro de inventario no encontrado.']);
         }
 
         $inv = (array) $invDoc;
@@ -167,9 +172,9 @@ class InventoryController extends Controller
             ]);
         } catch (\Throwable $e) {
             Log::error('Fallo al ajustar inventario.', ['error' => $e->getMessage()]);
-            return redirect()->route('equipo4.inventario.index')->withErrors(['error' => 'No se pudo ajustar: ' . $e->getMessage()]);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'No se pudo ajustar: ' . $e->getMessage()]);
         }
 
-        return redirect()->route('equipo4.inventario.index')->with('success', 'Ajuste aplicado correctamente.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Ajuste aplicado correctamente.');
     }
 }

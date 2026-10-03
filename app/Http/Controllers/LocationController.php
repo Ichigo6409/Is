@@ -11,7 +11,12 @@ use Illuminate\Http\Request;
 
 class LocationController extends Controller
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     public function store(StoreLocationRequest $request): RedirectResponse
     {
@@ -20,7 +25,7 @@ class LocationController extends Controller
 
         Location::create($validated);
 
-        return redirect()->back()->with('success', 'Ubicación creada exitosamente.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Ubicación creada exitosamente.');
     }
 
     public function update(UpdateLocationRequest $request, string $id): RedirectResponse
@@ -35,7 +40,7 @@ class LocationController extends Controller
 
         $location->update($request->validated());
 
-        return redirect()->back()->with('success', 'Ubicación actualizada exitosamente.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Ubicación actualizada exitosamente.');
     }
 
     public function destroy(string $id): RedirectResponse
@@ -50,6 +55,6 @@ class LocationController extends Controller
 
         $location->delete();
 
-        return redirect()->back()->with('success', 'Ubicación eliminada exitosamente.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Ubicación eliminada exitosamente.');
     }
 }

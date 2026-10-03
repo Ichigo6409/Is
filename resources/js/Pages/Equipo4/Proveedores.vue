@@ -40,6 +40,7 @@ const statusLabels = { ACTIVO: 'Activo', INACTIVO: 'Inactivo', SUSPENDIDO: 'Susp
 const formattedSuppliers = computed(() => {
   return props.suppliers.map(s => ({
     ...s,
+    _id: String(s._id || ''),
     'Código': s.code,
     'Razón social': s.legal_name,
     'Contacto': s.contact_name,
@@ -85,11 +86,11 @@ const confirmDelete = (row) => {
 const submitForm = () => {
   if (isEditing.value) {
     form.put(`/equipo4/proveedores/${selectedSupplier.value._id}`, {
-      onSuccess: () => { showModal.value = false; form.reset() }
+      onSuccess: () => { showModal.value = false; form.reset() }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) }
     })
   } else {
     form.post('/equipo4/proveedores', {
-      onSuccess: () => { showModal.value = false; form.reset() }
+      onSuccess: () => { showModal.value = false; form.reset() }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) }
     })
   }
 }
@@ -97,7 +98,7 @@ const submitForm = () => {
 const deleteSupplier = () => {
   if (!selectedSupplier.value) return
   router.delete(`/equipo4/proveedores/${selectedSupplier.value._id}`, {
-    onSuccess: () => { showDeleteModal.value = false; selectedSupplier.value = null }
+    onSuccess: () => { showDeleteModal.value = false; selectedSupplier.value = null }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) }
   })
 }
 </script>

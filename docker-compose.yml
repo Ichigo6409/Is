@@ -8,9 +8,11 @@ services:
     restart: unless-stopped
     ports:
       - "8004:80"
+    volumes:
+      - ./:/var/www/html 
     environment:
       APP_NAME: "Campus Digital - Equipo 4"
-      APP_ENV: production
+      APP_ENV: local
       APP_KEY: base64:z394uNfZ7FVZepPga7WLSt1s8NRYOSTth+3K281kJTQ=
       APP_DEBUG: "false"
       APP_URL: http://localhost:8004

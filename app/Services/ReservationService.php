@@ -12,7 +12,12 @@ use MongoDB\BSON\ObjectId;
 
 class ReservationService
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     public function reserve(array $data): StockReservation
     {
@@ -73,7 +78,7 @@ class ReservationService
                 'source' => $source,
                 'external_reference' => $externalReference,
                 'expires_at' => \Illuminate\Support\Carbon::parse($expiresAt)->toDateTime(),
-                'created_by' => 'USR-ADMIN-001',
+                'created_by' => ActorResolver::resolve('USR-ADMIN-001'),
                 'created_at' => now()->toDateTime(),
                 'updated_at' => now()->toDateTime(),
             ]);

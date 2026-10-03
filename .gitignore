@@ -48,3 +48,16 @@ _bak_*/
 *.bak2
 *.bak3
 .last_reservation_id
+# ============================================
+# Archivos temporales / locales (Fase 9)
+# ============================================
+.phpunit.result.cache
+.team4_last_backup
+.e7_test_fixture.json
+_auditoria_integracion_*.txt
+_backfill.php
+_backup_doc_*/
+_backup_fase*/
+_backup_cierre_*/
+_gen_docs.php
+/resources/js/Pages/Equipo4/*.vue.bak*

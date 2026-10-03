@@ -10,7 +10,10 @@ class UpdateProductRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        $identity = app(\App\Services\IdentityService::class);
+        $userId   = $identity->resolveCurrentUserId();
+
+        return $identity->userCan($userId, 'productos.update');
     }
 
     public function rules(): array
@@ -19,14 +22,14 @@ class UpdateProductRequest extends FormRequest
 
         return [
             'sku' => ['required', 'string', 'max:50', 'regex:/^[A-Z0-9\-]+$/', function ($attribute, $value, $fail) use ($productId) {
-                if (Product::where('sku', $value)->where('business_id', 'BUS-CD-SOUV-001')->where('_id', '!=', $productId)->exists()) {
+                if (Product::where('sku', $value)->where('business_id', config('team4.business_id'))->where('_id', '!=', $productId)->exists()) {
                     $fail('Ya existe otro producto registrado con ese SKU.');
                 }
             }],
             'name' => 'required|string|max:200',
             'description' => 'nullable|string|max:1000',
             'category' => ['required', 'string', function ($attribute, $value, $fail) {
-                $exists = Category::where('business_id', 'BUS-CD-SOUV-001')
+                $exists = Category::where('business_id', config('team4.business_id'))
                     ->where('slug', $value)
                     ->where('active', true)
                     ->exists();

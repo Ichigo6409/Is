@@ -13,7 +13,12 @@ use MongoDB\BSON\ObjectId;
 
 class AlertController extends Controller
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     public function index(Request $request): Response
     {
@@ -143,9 +148,9 @@ class AlertController extends Controller
             $stats = $generator->generate();
             Cache::forget('equipo4_alerts_last_generate');
             $msg = sprintf('Alertas recalculadas. Creadas: %d, Actualizadas: %d, Resueltas: %d', $stats['created'], $stats['updated'], $stats['resolved']);
-            return redirect()->route('equipo4.alertas.index')->with('success', $msg);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', $msg);
         } catch (\Throwable $e) {
-            return redirect()->route('equipo4.alertas.index')->withErrors(['error' => 'Error: ' . $e->getMessage()]);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'Error: ' . $e->getMessage()]);
         }
     }
 
@@ -159,7 +164,7 @@ class AlertController extends Controller
             '_id' => new ObjectId($id),
             'business_id' => $this->businessId,
         ]);
-        if (!$alertDoc) return redirect()->route('equipo4.alertas.index')->withErrors(['error' => 'Alerta no encontrada.']);
+        if (!$alertDoc) return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'Alerta no encontrada.']);
 
         DB::connection('mongodb')->getCollection('stock_alerts')->updateOne(
             ['_id' => new ObjectId($id)],
@@ -172,6 +177,6 @@ class AlertController extends Controller
             ]]
         );
 
-        return redirect()->route('equipo4.alertas.index')->with('success', 'Alerta descartada.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Alerta descartada.');
     }
 }

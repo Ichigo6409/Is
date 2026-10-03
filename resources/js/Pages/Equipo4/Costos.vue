@@ -21,6 +21,7 @@ const columns = ['SKU', 'Producto', 'Último costo', 'Costo promedio', 'Precio s
 const formattedProducts = computed(() => {
   return props.products.map(p => ({
     ...p,
+    _id: String(p._id || ''),
     'SKU': p.sku,
     'Producto': p.name,
     'Último costo': p.last_cost !== null ? '$' + Number(p.last_cost).toFixed(2) : '—',
@@ -52,7 +53,8 @@ const openCostModal = (row) => {
 const submitCost = () => {
   costForm.post('/equipo4/costos', {
     preserveScroll: true,
-    onSuccess: () => { showCostModal.value = false; costForm.reset() }
+    onFinish: () => { if (!Object.keys(costForm.errors).length) { showCostModal.value = false; costForm.reset() } }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) },
+    onError: (e) => { console.error('Costos error:', e); alert('No se pudo registrar: ' + JSON.stringify(e)) }
   })
 }
 

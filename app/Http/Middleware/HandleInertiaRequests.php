@@ -25,7 +25,7 @@ class HandleInertiaRequests extends Middleware
             $urgentAlertsCount = \Illuminate\Support\Facades\DB::connection('mongodb')
                 ->getCollection('stock_alerts')
                 ->countDocuments([
-                    'business_id' => 'BUS-CD-SOUV-001',
+                    'business_id' => config('team4.business_id'),
                     'status' => 'ACTIVE',
                     'priority' => ['$in' => ['HIGH', 'CRITICAL']],
                 ]);

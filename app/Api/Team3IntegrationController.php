@@ -4,6 +4,7 @@ namespace App\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class Team3IntegrationController extends Controller
@@ -56,16 +57,61 @@ class Team3IntegrationController extends Controller
         }
     }
 
+    /**
+     * Confirmar reserva. Requiere payment_intent_id validado contra payment_events.
+     * Solo confirma si el evento más reciente del PI tiene status = PAID.
+     */
     public function confirm(Request $request, string $id)
     {
         $validated = $request->validate([
-            'order_id' => 'required|string|max:100',
-            'idempotency_key' => 'required|string|min:8|max:128',
-            'actor_id' => 'nullable|string|max:100',
+            'order_id'          => 'required|string|max:100',
+            'payment_intent_id' => 'required|string|max:100',
+            'idempotency_key'   => 'required|string|min:8|max:128',
+            'actor_id'          => 'nullable|string|max:100',
         ]);
 
+        // Verificación de pago contra payment_events
+        $payment = DB::connection('mongodb')
+            ->getCollection('payment_events')
+            ->findOne(
+                [
+                    'payment_intent_id' => $validated['payment_intent_id'],
+                    'order_id'          => $validated['order_id'],
+                ],
+                ['sort' => ['received_at' => -1]]
+            );
+
+        if (!$payment) {
+            return response()->json([
+                'status' => 'REJECTED',
+                'reason' => 'No hay registro de pago para este payment_intent_id',
+            ], 409);
+        }
+
+        if (($payment['status'] ?? '') !== 'PAID') {
+            return response()->json([
+                'status'         => 'REJECTED',
+                'reason'         => 'Pago en estado ' . ($payment['status'] ?? 'DESCONOCIDO'),
+                'payment_status' => $payment['status'] ?? null,
+            ], 409);
+        }
+
         try {
-            return response()->json($this->api->confirm($id, $validated), 200);
+            $result = $this->api->confirm($id, $validated);
+
+            // Anotar el payment_intent en la reserva
+            DB::connection('mongodb')
+                ->getCollection('team3_api_reservations')
+                ->updateOne(
+                    ['reservation_id' => $id],
+                    ['$set' => [
+                        'payment_intent_id' => $validated['payment_intent_id'],
+                        'payment_status'    => $payment['status'],
+                        'payment_amount'    => $payment['amount'] ?? null,
+                    ]]
+                );
+
+            return response()->json($result, 200);
         } catch (\DomainException $e) {
             return response()->json(['message' => $e->getMessage()], 409);
         } catch (\InvalidArgumentException $e) {
@@ -94,5 +140,46 @@ class Team3IntegrationController extends Controller
             Log::error('Team3 release failed.', ['id' => $id, 'error' => $e->getMessage()]);
             return response()->json(['message' => 'Error al liberar reserva.'], 500);
         }
+    }
+
+    /**
+     * Consulta el estado completo de una reserva, incluyendo el pago asociado.
+     */
+    public function show(Request $request, string $id)
+    {
+        $res = DB::connection('mongodb')
+            ->getCollection('team3_api_reservations')
+            ->findOne(['reservation_id' => $id, 'business_id' => config('team4.business_id')]);
+
+        if (!$res) {
+            return response()->json(['message' => 'Reserva no encontrada'], 404);
+        }
+
+        $payment = null;
+        if (!empty($res['payment_intent_id'])) {
+            $p = DB::connection('mongodb')
+                ->getCollection('payment_events')
+                ->findOne(
+                    ['payment_intent_id' => $res['payment_intent_id']],
+                    ['sort' => ['received_at' => -1]]
+                );
+            if ($p) {
+                $payment = [
+                    'payment_intent_id' => $p['payment_intent_id'],
+                    'status'            => $p['status'],
+                    'amount'            => $p['amount'] ?? null,
+                    'occurred_at'       => $p['occurred_at'] ?? null,
+                ];
+            }
+        }
+
+        return response()->json([
+            'reservation_id' => $res['reservation_id'],
+            'order_id'       => $res['order_id'],
+            'status'         => $res['status'],
+            'items'          => $res['items'] ?? [],
+            'expires_at'     => $res['expires_at'] ?? null,
+            'payment'        => $payment,
+        ], 200);
     }
 }

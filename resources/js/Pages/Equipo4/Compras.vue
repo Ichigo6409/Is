@@ -32,6 +32,7 @@ const statusLabels = {
 const formattedOrders = computed(() => {
   return props.orders.map(o => ({
     ...o,
+    _id: String(o._id || ''),
     'Folio': o.folio,
     'Proveedor': o.supplier_name,
     'Estado': o.status,
@@ -89,7 +90,7 @@ const openEditModal = async (row) => {
 const submitForm = () => {
   const options = {
     preserveScroll: true,
-    onSuccess: () => { showModal.value = false; form.reset() },
+    onSuccess: () => { showModal.value = false; form.reset() }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) },
   }
   if (isEditing.value) {
     form.put(`/equipo4/compras/${selectedOrder.value._id}`, options)
@@ -101,13 +102,13 @@ const submitForm = () => {
 const authorizeOrder = (row) => {
   if (!canAuthorize.value || !row._id) return
   if (!confirm(`¿Autorizar la OC ${row.folio}?`)) return
-  router.post(`/equipo4/compras/${row._id}/status`, { action: 'autorizar' }, { preserveScroll: true })
+  router.patch(`/equipo4/compras/${row._id}/status`, { action: 'autorizar' }, { preserveScroll: true })
 }
 
 const cancelOrder = (row) => {
   if (!canCancel.value || !row._id) return
   if (!confirm(`¿Cancelar la OC ${row.folio}?`)) return
-  router.post(`/equipo4/compras/${row._id}/status`, { action: 'cancelar' }, { preserveScroll: true })
+  router.patch(`/equipo4/compras/${row._id}/status`, { action: 'cancelar' }, { preserveScroll: true })
 }
 
 const toggleHistory = () => {

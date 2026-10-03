@@ -19,7 +19,12 @@ use MongoDB\BSON\ObjectId;
 
 class StockCountController extends Controller
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     public function index(Request $request): Response
     {
@@ -41,7 +46,7 @@ class StockCountController extends Controller
             $attrs = $c->getAttributes();
             $wh = $warehousesMap->get((string) ($attrs['warehouse_id'] ?? ''));
             return [
-                '_id' => (string) ($attrs['_id'] ?? ''),
+                '_id' => (string) ($c->_id ?? ''),
                 'folio' => (string) ($attrs['folio'] ?? ''),
                 'warehouse_id' => (string) ($attrs['warehouse_id'] ?? ''),
                 'warehouse_name' => $wh ? (string) $wh->name : '—',
@@ -121,16 +126,16 @@ class StockCountController extends Controller
             ->where('business_id', $this->businessId)
             ->first();
 
-        if (!$warehouse) return redirect()->route('equipo4.conteos.index')->withErrors(['error' => 'Almacén no encontrado.']);
+        if (!$warehouse) return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'Almacén no encontrado.']);
 
         $locations = Location::where('warehouse_id', $validated['warehouse_id'])->get();
         $locationIds = [];
         foreach ($locations as $loc) $locationIds[] = (string) $loc->_id;
 
-        if (count($locationIds) === 0) return redirect()->route('equipo4.conteos.index')->withErrors(['error' => 'El almacén no tiene ubicaciones configuradas.']);
+        if (count($locationIds) === 0) return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'El almacén no tiene ubicaciones configuradas.']);
 
         $inventoryItems = Inventory::where('business_id', $this->businessId)->whereIn('location_id', $locationIds)->get();
-        if ($inventoryItems->isEmpty()) return redirect()->route('equipo4.conteos.index')->withErrors(['error' => 'No hay existencias registradas en este almacén.']);
+        if ($inventoryItems->isEmpty()) return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'No hay existencias registradas en este almacén.']);
 
         $folio = $this->nextFolio();
         $productsMap = Product::where('business_id', $this->businessId)->get()->keyBy(fn($p) => (string) $p->_id);
@@ -178,7 +183,7 @@ class StockCountController extends Controller
             DB::connection('mongodb')->getCollection('stock_count_items')->insertMany($itemsToInsert);
         }
 
-        return redirect()->route('equipo4.conteos.index')->with('success', 'Conteo ' . $folio . ' creado.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Conteo ' . $folio . ' creado.');
     }
 
     public function show(string $id)
@@ -195,7 +200,7 @@ class StockCountController extends Controller
                 $attrs = $i->getAttributes();
                 $product = $productsMap->get((string) ($attrs['product_id'] ?? ''));
                 return [
-                    '_id' => (string) ($attrs['_id'] ?? ''),
+                    '_id' => (string) ($c->_id ?? ''),
                     'product_id' => (string) ($attrs['product_id'] ?? ''),
                     'product_sku' => (string) ($attrs['product_sku'] ?? ''),
                     'product_name' => (string) ($attrs['product_name'] ?? ''),
@@ -209,7 +214,7 @@ class StockCountController extends Controller
         $attrs = $stockCount->getAttributes();
 
         return response()->json([
-            '_id' => (string) ($attrs['_id'] ?? ''),
+            '_id' => (string) ($c->_id ?? ''),
             'folio' => (string) ($attrs['folio'] ?? ''),
             'status' => (string) ($attrs['status'] ?? ''),
             'notes' => (string) ($attrs['notes'] ?? ''),
@@ -226,8 +231,8 @@ class StockCountController extends Controller
         ]);
 
         $stockCount = StockCount::where('_id', $id)->where('business_id', $this->businessId)->first();
-        if (!$stockCount) return redirect()->route('equipo4.conteos.index')->withErrors(['error' => 'Conteo no encontrado.']);
-        if ($stockCount->status !== 'DRAFT') return redirect()->route('equipo4.conteos.index')->withErrors(['error' => 'Solo se pueden capturar conteos en Borrador.']);
+        if (!$stockCount) return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'Conteo no encontrado.']);
+        if ($stockCount->status !== 'DRAFT') return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'Solo se pueden capturar conteos en Borrador.']);
 
         $itemsCollection = DB::connection('mongodb')->getCollection('stock_count_items');
         $differencesCount = 0;
@@ -263,17 +268,17 @@ class StockCountController extends Controller
             ['$set' => ['differences_count' => $differencesCount, 'updated_at' => now()->toDateTime()]]
         );
 
-        return redirect()->route('equipo4.conteos.index')->with('success', 'Conteo actualizado. Items: ' . $updatedCount . '. Diferencias: ' . $differencesCount);
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Conteo actualizado. Items: ' . $updatedCount . '. Diferencias: ' . $differencesCount);
     }
 
     public function close(string $id, InventoryService $inventoryService): RedirectResponse
     {
         $stockCount = StockCount::where('_id', $id)->where('business_id', $this->businessId)->first();
-        if (!$stockCount) return redirect()->route('equipo4.conteos.index')->withErrors(['error' => 'Conteo no encontrado.']);
-        if ($stockCount->status !== 'DRAFT') return redirect()->route('equipo4.conteos.index')->withErrors(['error' => 'Solo se pueden cerrar conteos en Borrador.']);
+        if (!$stockCount) return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'Conteo no encontrado.']);
+        if ($stockCount->status !== 'DRAFT') return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'Solo se pueden cerrar conteos en Borrador.']);
 
         $items = StockCountItem::where('stock_count_id', $id)->get();
-        if ($items->isEmpty()) return redirect()->route('equipo4.conteos.index')->withErrors(['error' => 'El conteo no tiene items.']);
+        if ($items->isEmpty()) return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'El conteo no tiene items.']);
 
         $appliedAdjustments = [];
         $errors = [];
@@ -332,7 +337,7 @@ class StockCountController extends Controller
                     ]);
                 } catch (\Throwable $e) {}
             }
-            return redirect()->route('equipo4.conteos.index')->withErrors(['error' => 'Errores: ' . implode(' | ', $errors)]);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'Errores: ' . implode(' | ', $errors)]);
         }
 
         DB::connection('mongodb')->getCollection('stock_counts')->updateOne(
@@ -340,18 +345,18 @@ class StockCountController extends Controller
             ['$set' => ['status' => 'CLOSED', 'closed_by' => 'USR-ADMIN-001', 'updated_at' => now()->toDateTime()]]
         );
 
-        return redirect()->route('equipo4.conteos.index')->with('success', 'Conteo cerrado. ' . $applied . ' ajustes aplicados.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Conteo cerrado. ' . $applied . ' ajustes aplicados.');
     }
 
     public function destroy(string $id): RedirectResponse
     {
         $stockCount = StockCount::where('_id', $id)->where('business_id', $this->businessId)->first();
-        if (!$stockCount) return redirect()->route('equipo4.conteos.index')->withErrors(['error' => 'Conteo no encontrado.']);
-        if ($stockCount->status !== 'DRAFT') return redirect()->route('equipo4.conteos.index')->withErrors(['error' => 'Solo se pueden eliminar conteos en Borrador.']);
+        if (!$stockCount) return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'Conteo no encontrado.']);
+        if ($stockCount->status !== 'DRAFT') return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'Solo se pueden eliminar conteos en Borrador.']);
 
         DB::connection('mongodb')->getCollection('stock_count_items')->deleteMany(['stock_count_id' => $id]);
         DB::connection('mongodb')->getCollection('stock_counts')->deleteOne(['_id' => new ObjectId($id)]);
 
-        return redirect()->route('equipo4.conteos.index')->with('success', 'Conteo eliminado.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Conteo eliminado.');
     }
 }

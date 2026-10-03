@@ -13,7 +13,12 @@ use MongoDB\BSON\ObjectId;
 
 class ReorderRuleController extends Controller
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     public function index(Request $request): Response
     {
@@ -34,7 +39,7 @@ class ReorderRuleController extends Controller
         $after = DB::connection('mongodb')->getCollection('reorder_rules')->countDocuments(['business_id' => $this->businessId]);
         $created = max(0, $after - $before);
 
-        return redirect()->route('equipo4.alertas.index')
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))
             ->with('success', sprintf('Reglas sincronizadas: %d nuevas, %d actualizadas.', $created, $after));
     }
 
@@ -49,7 +54,7 @@ class ReorderRuleController extends Controller
             '_id' => new ObjectId($id),
             'business_id' => $this->businessId,
         ]);
-        if (!$ruleDoc) return redirect()->route('equipo4.alertas.index')->withErrors(['error' => 'Regla no encontrada.']);
+        if (!$ruleDoc) return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'Regla no encontrada.']);
         $rule = (array) $ruleDoc;
 
         $productId = (string) ($rule['product_id'] ?? '');
@@ -72,7 +77,7 @@ class ReorderRuleController extends Controller
             }
         } catch (\Throwable $e) {}
 
-        return redirect()->route('equipo4.alertas.index')->with('success', 'Punto de reorden actualizado.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Punto de reorden actualizado.');
     }
 
     public function reset(string $id, ReorderRuleService $rules, AlertGeneratorService $alerts): RedirectResponse
@@ -81,7 +86,7 @@ class ReorderRuleController extends Controller
             '_id' => new ObjectId($id),
             'business_id' => $this->businessId,
         ]);
-        if (!$ruleDoc) return redirect()->route('equipo4.alertas.index')->withErrors(['error' => 'Regla no encontrada.']);
+        if (!$ruleDoc) return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'Regla no encontrada.']);
         $rule = (array) $ruleDoc;
 
         $productId = (string) ($rule['product_id'] ?? '');
@@ -93,6 +98,6 @@ class ReorderRuleController extends Controller
             $alerts->syncOne($productId, $locationId);
         } catch (\Throwable $e) {}
 
-        return redirect()->route('equipo4.alertas.index')->with('success', 'Punto de reorden recalculado.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Punto de reorden recalculado.');
     }
 }

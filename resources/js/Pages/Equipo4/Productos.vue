@@ -29,6 +29,7 @@ function categoryLabel(slug) {
 const formattedProducts = computed(() => {
   return props.products.map(p => ({
     ...p,
+    _id: String(p._id || ''),
     SKU: p.sku,
     Producto: p.name,
     'Categoría': categoryLabel(p.category),

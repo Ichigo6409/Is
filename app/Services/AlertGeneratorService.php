@@ -13,7 +13,12 @@ use MongoDB\BSON\ObjectId;
 
 class AlertGeneratorService
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     /**
      * Calcula la prioridad de una alerta basada en:

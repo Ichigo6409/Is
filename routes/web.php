@@ -22,12 +22,13 @@ use App\Http\Controllers\CategoryController;
 // Pagina publica de "No autorizado"
 Route::get('/equipo4/not-authorized', function (\Illuminate\Http\Request $request) {
     return \Inertia\Inertia::render('Equipo4/NotAuthorized', [
-        'reason' => (string) $request->query('reason', 'unknown'),
+        'reason'     => (string) $request->query('reason', 'unknown'),
+        'permission' => (string) $request->query('permission', ''),
     ]);
 })->name('equipo4.not-authorized');
 
 // Rutas DEV (solo local)
-if (app()->environment('local')) {
+if (app()->environment('local', 'development', 'testing')) {
     Route::get('/equipo4/dev/switch/{userId}', function (string $userId) {
         session(['team4_impersonate_user_id' => $userId]);
         return redirect()->route('equipo4.dashboard');
@@ -38,85 +39,218 @@ if (app()->environment('local')) {
     });
 }
 
-// Panel admin protegido por rol
+// Panel admin protegido por rol + permisos finos
 Route::prefix('equipo4')->middleware([EnsureTeam4Role::class])->group(function () {
-    Route::get('/', [Team4Controller::class, 'dashboard'])->name('equipo4.dashboard');
 
-    Route::get('/productos', [ProductController::class, 'index'])->name('equipo4.productos.index');
-    Route::post('/productos', [ProductController::class, 'store'])->name('equipo4.productos.store');
-    Route::put('/productos/{id}', [ProductController::class, 'update'])->name('equipo4.productos.update');
-    Route::delete('/productos/{id}', [ProductController::class, 'destroy'])->name('equipo4.productos.destroy');
+    // ---------- Dashboard (visible para todos los roles autorizados) ----------
+    Route::get('/', [Team4Controller::class, 'dashboard'])
+        ->name('equipo4.dashboard');
 
-    Route::get('/souvenirs', [ProductController::class, 'souvenirs'])->name('equipo4.souvenirs.index');
-    Route::post('/souvenirs', [ProductController::class, 'store'])->name('equipo4.souvenirs.store');
-    Route::put('/souvenirs/{id}', [ProductController::class, 'update'])->name('equipo4.souvenirs.update');
-    Route::delete('/souvenirs/{id}', [ProductController::class, 'destroy'])->name('equipo4.souvenirs.destroy');
+    // ---------- Productos ----------
+    Route::get('/productos', [ProductController::class, 'index'])
+        ->middleware('team4.permission:productos.view')
+        ->name('equipo4.productos.index');
+    Route::post('/productos', [ProductController::class, 'store'])
+        ->middleware('team4.permission:productos.create')
+        ->name('equipo4.productos.store');
+    Route::put('/productos/{id}', [ProductController::class, 'update'])
+        ->middleware('team4.permission:productos.update')
+        ->name('equipo4.productos.update');
+    Route::delete('/productos/{id}', [ProductController::class, 'destroy'])
+        ->middleware('team4.permission:productos.delete')
+        ->name('equipo4.productos.destroy');
 
-    Route::get('/proveedores', [SupplierController::class, 'index'])->name('equipo4.proveedores.index');
-    Route::post('/proveedores', [SupplierController::class, 'store'])->name('equipo4.proveedores.store');
-    Route::put('/proveedores/{id}', [SupplierController::class, 'update'])->name('equipo4.proveedores.update');
-    Route::delete('/proveedores/{id}', [SupplierController::class, 'destroy'])->name('equipo4.proveedores.destroy');
+    // ---------- Souvenirs ----------
+    Route::get('/souvenirs', [ProductController::class, 'souvenirs'])
+        ->middleware('team4.permission:souvenirs.view')
+        ->name('equipo4.souvenirs.index');
+    Route::post('/souvenirs', [ProductController::class, 'store'])
+        ->middleware('team4.permission:souvenirs.create')
+        ->name('equipo4.souvenirs.store');
+    Route::put('/souvenirs/{id}', [ProductController::class, 'update'])
+        ->middleware('team4.permission:souvenirs.update')
+        ->name('equipo4.souvenirs.update');
+    Route::delete('/souvenirs/{id}', [ProductController::class, 'destroy'])
+        ->middleware('team4.permission:souvenirs.delete')
+        ->name('equipo4.souvenirs.destroy');
 
-    Route::get('/almacenes', [WarehouseController::class, 'index'])->name('equipo4.almacenes.index');
-    Route::post('/almacenes', [WarehouseController::class, 'store'])->name('equipo4.almacenes.store');
-    Route::put('/almacenes/{id}', [WarehouseController::class, 'update'])->name('equipo4.almacenes.update');
-    Route::delete('/almacenes/{id}', [WarehouseController::class, 'destroy'])->name('equipo4.almacenes.destroy');
+    // ---------- Proveedores ----------
+    Route::get('/proveedores', [SupplierController::class, 'index'])
+        ->middleware('team4.permission:proveedores.view')
+        ->name('equipo4.proveedores.index');
+    Route::post('/proveedores', [SupplierController::class, 'store'])
+        ->middleware('team4.permission:proveedores.create')
+        ->name('equipo4.proveedores.store');
+    Route::put('/proveedores/{id}', [SupplierController::class, 'update'])
+        ->middleware('team4.permission:proveedores.update')
+        ->name('equipo4.proveedores.update');
+    Route::delete('/proveedores/{id}', [SupplierController::class, 'destroy'])
+        ->middleware('team4.permission:proveedores.delete')
+        ->name('equipo4.proveedores.destroy');
 
-    Route::get   ('/categorias',      [CategoryController::class, 'index'  ])->name('equipo4.categorias.index');
-Route::post  ('/categorias',      [CategoryController::class, 'store'  ])->name('equipo4.categorias.store');
-Route::put   ('/categorias/{id}', [CategoryController::class, 'update' ])->name('equipo4.categorias.update');
-Route::delete('/categorias/{id}', [CategoryController::class, 'destroy'])->name('equipo4.categorias.destroy');
+    // ---------- Almacenes ----------
+    Route::get('/almacenes', [WarehouseController::class, 'index'])
+        ->middleware('team4.permission:almacenes.view')
+        ->name('equipo4.almacenes.index');
+    Route::post('/almacenes', [WarehouseController::class, 'store'])
+        ->middleware('team4.permission:almacenes.create')
+        ->name('equipo4.almacenes.store');
+    Route::put('/almacenes/{id}', [WarehouseController::class, 'update'])
+        ->middleware('team4.permission:almacenes.update')
+        ->name('equipo4.almacenes.update');
+    Route::delete('/almacenes/{id}', [WarehouseController::class, 'destroy'])
+        ->middleware('team4.permission:almacenes.delete')
+        ->name('equipo4.almacenes.destroy');
 
-    Route::post('/ubicaciones', [LocationController::class, 'store'])->name('equipo4.ubicaciones.store');
-    Route::put('/ubicaciones/{id}', [LocationController::class, 'update'])->name('equipo4.ubicaciones.update');
-    Route::delete('/ubicaciones/{id}', [LocationController::class, 'destroy'])->name('equipo4.ubicaciones.destroy');
+    // ---------- Categorias (mapea a productos.*) ----------
+    Route::get('/categorias', [CategoryController::class, 'index'])
+        ->middleware('team4.permission:productos.view')
+        ->name('equipo4.categorias.index');
+    Route::post('/categorias', [CategoryController::class, 'store'])
+        ->middleware('team4.permission:productos.create')
+        ->name('equipo4.categorias.store');
+    Route::put('/categorias/{id}', [CategoryController::class, 'update'])
+        ->middleware('team4.permission:productos.update')
+        ->name('equipo4.categorias.update');
+    Route::delete('/categorias/{id}', [CategoryController::class, 'destroy'])
+        ->middleware('team4.permission:productos.delete')
+        ->name('equipo4.categorias.destroy');
 
-    Route::get('/compras', [PurchaseOrderController::class, 'index'])->name('equipo4.compras.index');
-    Route::post('/compras', [PurchaseOrderController::class, 'store'])->name('equipo4.compras.store');
-    Route::get('/compras/{id}/details', [PurchaseOrderController::class, 'show'])->name('equipo4.compras.show');
-    Route::put('/compras/{id}', [PurchaseOrderController::class, 'update'])->name('equipo4.compras.update');
-    Route::patch('/compras/{id}/status', [PurchaseOrderController::class, 'changeStatus'])->name('equipo4.compras.status');
-    Route::delete('/compras/{id}', [PurchaseOrderController::class, 'destroy'])->name('equipo4.compras.destroy');
+    // ---------- Ubicaciones (mapea a almacenes.*) ----------
+    Route::post('/ubicaciones', [LocationController::class, 'store'])
+        ->middleware('team4.permission:almacenes.update')
+        ->name('equipo4.ubicaciones.store');
+    Route::put('/ubicaciones/{id}', [LocationController::class, 'update'])
+        ->middleware('team4.permission:almacenes.update')
+        ->name('equipo4.ubicaciones.update');
+    Route::delete('/ubicaciones/{id}', [LocationController::class, 'destroy'])
+        ->middleware('team4.permission:almacenes.delete')
+        ->name('equipo4.ubicaciones.destroy');
 
-    Route::get('/recepciones', [GoodsReceiptController::class, 'index'])->name('equipo4.recepciones.index');
-    Route::post('/recepciones', [GoodsReceiptController::class, 'store'])->name('equipo4.recepciones.store');
-    Route::delete('/recepciones/{id}', [GoodsReceiptController::class, 'destroy'])->name('equipo4.recepciones.destroy');
+    // ---------- Compras ----------
+    Route::get('/compras', [PurchaseOrderController::class, 'index'])
+        ->middleware('team4.permission:compras.view')
+        ->name('equipo4.compras.index');
+    Route::post('/compras', [PurchaseOrderController::class, 'store'])
+        ->middleware('team4.permission:compras.create')
+        ->name('equipo4.compras.store');
+    Route::get('/compras/{id}/details', [PurchaseOrderController::class, 'show'])
+        ->middleware('team4.permission:compras.view')
+        ->name('equipo4.compras.show');
+    Route::put('/compras/{id}', [PurchaseOrderController::class, 'update'])
+        ->middleware('team4.permission:compras.update')
+        ->name('equipo4.compras.update');
+    Route::patch('/compras/{id}/status', [PurchaseOrderController::class, 'changeStatus'])
+        ->middleware('team4.permission:compras.authorize')
+        ->name('equipo4.compras.status');
+    Route::delete('/compras/{id}', [PurchaseOrderController::class, 'destroy'])
+        ->middleware('team4.permission:compras.cancel')
+        ->name('equipo4.compras.destroy');
 
-    Route::get('/kardex', [KardexController::class, 'index'])->name('equipo4.kardex.index');
+    // ---------- Recepciones ----------
+    Route::get('/recepciones', [GoodsReceiptController::class, 'index'])
+        ->middleware('team4.permission:recepciones.view')
+        ->name('equipo4.recepciones.index');
+    Route::post('/recepciones', [GoodsReceiptController::class, 'store'])
+        ->middleware('team4.permission:recepciones.create')
+        ->name('equipo4.recepciones.store');
+    Route::delete('/recepciones/{id}', [GoodsReceiptController::class, 'destroy'])
+        ->middleware('team4.permission:recepciones.create')
+        ->name('equipo4.recepciones.destroy');
 
-    Route::get('/costos', [CostController::class, 'index'])->name('equipo4.costos.index');
-    Route::post('/costos', [CostController::class, 'store'])->name('equipo4.costos.store');
-    Route::get('/costos/{id}/history', [CostController::class, 'history'])->name('equipo4.costos.history');
+    // ---------- Kardex ----------
+    Route::get('/kardex', [KardexController::class, 'index'])
+        ->middleware('team4.permission:kardex.view')
+        ->name('equipo4.kardex.index');
 
-    Route::get('/reservas', [ReservationController::class, 'index'])->name('equipo4.reservas.index');
-    Route::post('/reservas', [ReservationController::class, 'store'])->name('equipo4.reservas.store');
-    Route::post('/reservas/{id}/release', [ReservationController::class, 'release'])->name('equipo4.reservas.release');
-    Route::post('/reservas/expire-overdue', [ReservationController::class, 'expireOverdue'])->name('equipo4.reservas.expireOverdue');
+    // ---------- Costos ----------
+    Route::get('/costos', [CostController::class, 'index'])
+        ->middleware('team4.permission:costos.view')
+        ->name('equipo4.costos.index');
+    Route::post('/costos', [CostController::class, 'store'])
+        ->middleware('team4.permission:costos.register')
+        ->name('equipo4.costos.store');
+    Route::get('/costos/{id}/history', [CostController::class, 'history'])
+        ->middleware('team4.permission:costos.view')
+        ->name('equipo4.costos.history');
 
-    Route::get('/alertas', [AlertController::class, 'index'])->name('equipo4.alertas.index');
-    Route::post('/alertas/generate', [AlertController::class, 'generate'])->name('equipo4.alertas.generate');
-    Route::post('/alertas/{id}/discard', [AlertController::class, 'discard'])->name('equipo4.alertas.discard');
+    // ---------- Reservas ----------
+    Route::get('/reservas', [ReservationController::class, 'index'])
+        ->middleware('team4.permission:reservas.view')
+        ->name('equipo4.reservas.index');
+    Route::post('/reservas', [ReservationController::class, 'store'])
+        ->middleware('team4.permission:reservas.create')
+        ->name('equipo4.reservas.store');
+    Route::post('/reservas/{id}/release', [ReservationController::class, 'release'])
+        ->middleware('team4.permission:reservas.release')
+        ->name('equipo4.reservas.release');
+    Route::post('/reservas/expire-overdue', [ReservationController::class, 'expireOverdue'])
+        ->middleware('team4.permission:reservas.release')
+        ->name('equipo4.reservas.expireOverdue');
 
-    Route::post('/reglas-reorden/sync-all', [ReorderRuleController::class, 'syncAll'])->name('equipo4.reglas.syncAll');
-    Route::put('/reglas-reorden/{id}', [ReorderRuleController::class, 'update'])->name('equipo4.reglas.update');
-    Route::post('/reglas-reorden/{id}/reset', [ReorderRuleController::class, 'reset'])->name('equipo4.reglas.reset');
+    // ---------- Alertas ----------
+    Route::get('/alertas', [AlertController::class, 'index'])
+        ->middleware('team4.permission:alertas.view')
+        ->name('equipo4.alertas.index');
+    Route::post('/alertas/generate', [AlertController::class, 'generate'])
+        ->middleware('team4.permission:alertas.sync')
+        ->name('equipo4.alertas.generate');
+    Route::post('/alertas/{id}/discard', [AlertController::class, 'discard'])
+        ->middleware('team4.permission:alertas.discard')
+        ->name('equipo4.alertas.discard');
 
-    Route::get('/inventario', [InventoryController::class, 'index'])->name('equipo4.inventario.index');
-    Route::post('/inventario/adjust', [InventoryController::class, 'adjust'])->name('equipo4.inventario.adjust');
+    // ---------- Reglas de reorden (mapea a productos.update) ----------
+    Route::post('/reglas-reorden/sync-all', [ReorderRuleController::class, 'syncAll'])
+        ->middleware('team4.permission:productos.update')
+        ->name('equipo4.reglas.syncAll');
+    Route::put('/reglas-reorden/{id}', [ReorderRuleController::class, 'update'])
+        ->middleware('team4.permission:productos.update')
+        ->name('equipo4.reglas.update');
+    Route::post('/reglas-reorden/{id}/reset', [ReorderRuleController::class, 'reset'])
+        ->middleware('team4.permission:productos.update')
+        ->name('equipo4.reglas.reset');
 
-    Route::get('/devoluciones', [ReturnController::class, 'index'])->name('equipo4.devoluciones.index');
-    Route::post('/devoluciones/proveedor', [ReturnController::class, 'storeSupplier'])->name('equipo4.devoluciones.storeSupplier');
-    Route::post('/devoluciones/cliente', [ReturnController::class, 'storeCustomer'])->name('equipo4.devoluciones.storeCustomer');
+    // ---------- Inventario ----------
+    Route::get('/inventario', [InventoryController::class, 'index'])
+        ->middleware('team4.permission:inventario.view')
+        ->name('equipo4.inventario.index');
+    Route::post('/inventario/adjust', [InventoryController::class, 'adjust'])
+        ->middleware('team4.permission:inventario.adjust')
+        ->name('equipo4.inventario.adjust');
 
-    Route::get('/conteos', [StockCountController::class, 'index'])->name('equipo4.conteos.index');
-    Route::post('/conteos', [StockCountController::class, 'store'])->name('equipo4.conteos.store');
-    Route::get('/conteos/{id}/details', [StockCountController::class, 'show'])->name('equipo4.conteos.show');
-    Route::post('/conteos/{id}/capture', [StockCountController::class, 'capture'])->name('equipo4.conteos.capture');
-    Route::post('/conteos/{id}/close', [StockCountController::class, 'close'])->name('equipo4.conteos.close');
-    Route::delete('/conteos/{id}', [StockCountController::class, 'destroy'])->name('equipo4.conteos.destroy');
+    // ---------- Devoluciones ----------
+    Route::get('/devoluciones', [ReturnController::class, 'index'])
+        ->middleware('team4.permission:devoluciones.view')
+        ->name('equipo4.devoluciones.index');
+    Route::post('/devoluciones/proveedor', [ReturnController::class, 'storeSupplier'])
+        ->middleware('team4.permission:devoluciones.storeSupplier')
+        ->name('equipo4.devoluciones.storeSupplier');
+    Route::post('/devoluciones/cliente', [ReturnController::class, 'storeCustomer'])
+        ->middleware('team4.permission:devoluciones.storeCustomer')
+        ->name('equipo4.devoluciones.storeCustomer');
+
+    // ---------- Conteos ----------
+    Route::get('/conteos', [StockCountController::class, 'index'])
+        ->middleware('team4.permission:conteos.view')
+        ->name('equipo4.conteos.index');
+    Route::post('/conteos', [StockCountController::class, 'store'])
+        ->middleware('team4.permission:conteos.create')
+        ->name('equipo4.conteos.store');
+    Route::get('/conteos/{id}/details', [StockCountController::class, 'show'])
+        ->middleware('team4.permission:conteos.view')
+        ->name('equipo4.conteos.show');
+    Route::post('/conteos/{id}/capture', [StockCountController::class, 'capture'])
+        ->middleware('team4.permission:conteos.capture')
+        ->name('equipo4.conteos.capture');
+    Route::post('/conteos/{id}/close', [StockCountController::class, 'close'])
+        ->middleware('team4.permission:conteos.close')
+        ->name('equipo4.conteos.close');
+    Route::delete('/conteos/{id}', [StockCountController::class, 'destroy'])
+        ->middleware('team4.permission:conteos.delete')
+        ->name('equipo4.conteos.destroy');
 });
 
-// API publica (solo lectura). La API de Eq. 3 esta en Team3ApiServiceProvider.
+// API publica (solo lectura, sin permisos de usuario — Eq.3 consume esto con HMAC aparte)
 Route::prefix('api/equipo4')->group(function () {
     Route::get('/products', [Team4Controller::class, 'products'])->middleware('throttle:60,1');
     Route::get('/warehouses', [Team4Controller::class, 'warehouses'])->middleware('throttle:60,1');
@@ -125,4 +259,18 @@ Route::prefix('api/equipo4')->group(function () {
     Route::get('/movements', [Team4Controller::class, 'movements'])->middleware('throttle:60,1');
     Route::get('/suppliers', [Team4Controller::class, 'suppliers'])->middleware('throttle:60,1');
     Route::get('/purchase-orders', [Team4Controller::class, 'purchaseOrders'])->middleware('throttle:60,1');
+});
+
+// ============================================================
+// API Equipo 7 - Recompensas fisicas (adapter sobre motor E3)
+// ============================================================
+Route::prefix('api/v1/inventory')->middleware([
+    \App\Http\Middleware\Team4ServiceSignature::class,
+    'throttle:120,1',
+])->group(function () {
+    Route::match(['GET','POST'], '/availability',        [\App\Api\Team7ApiController::class, 'availability']);
+    Route::post(           '/reservations',              [\App\Api\Team7ApiController::class, 'reserve']);
+    Route::get(            '/reservations/{id}',         [\App\Api\Team7ApiController::class, 'show']);
+    Route::post(           '/reservations/{id}/confirm', [\App\Api\Team7ApiController::class, 'confirm']);
+    Route::post(           '/reservations/{id}/release', [\App\Api\Team7ApiController::class, 'release']);
 });

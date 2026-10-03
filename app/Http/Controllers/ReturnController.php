@@ -18,7 +18,12 @@ use Illuminate\Support\Facades\Log;
 
 class ReturnController extends Controller
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     public function index(Request $request): Response
     {
@@ -57,7 +62,7 @@ class ReturnController extends Controller
             $attrs = $r->getAttributes();
             $supplier = $suppliersMap->get((string) ($attrs['supplier_id'] ?? ''));
             $all->push([
-                '_id' => (string) ($attrs['_id'] ?? ''),
+                '_id' => (string) ($c->_id ?? $w->_id ?? $s->_id ?? $p->_id ?? $i->_id ?? $r->_id ?? $a->_id ?? $o->_id ?? $u->_id ?? ''),
                 'folio' => (string) ($attrs['folio'] ?? ''),
                 'type' => 'A proveedor',
                 'reference' => (string) ($attrs['source_reference'] ?? ''),
@@ -71,7 +76,7 @@ class ReturnController extends Controller
         foreach ($customerReturns as $r) {
             $attrs = $r->getAttributes();
             $all->push([
-                '_id' => (string) ($attrs['_id'] ?? ''),
+                '_id' => (string) ($c->_id ?? $w->_id ?? $s->_id ?? $p->_id ?? $i->_id ?? $r->_id ?? $a->_id ?? $o->_id ?? $u->_id ?? ''),
                 'folio' => (string) ($attrs['folio'] ?? ''),
                 'type' => 'De cliente',
                 'reference' => (string) ($attrs['sale_reference'] ?? ''),
@@ -182,10 +187,10 @@ class ReturnController extends Controller
             ]);
         } catch (\Throwable $e) {
             Log::error('Fallo al registrar devolucion a proveedor.', ['error' => $e->getMessage()]);
-            return redirect()->route('equipo4.devoluciones.index')->withErrors(['error' => 'No se pudo registrar: ' . $e->getMessage()]);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'No se pudo registrar: ' . $e->getMessage()]);
         }
 
-        return redirect()->route('equipo4.devoluciones.index')->with('success', 'Devolución a proveedor registrada.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Devolución a proveedor registrada.');
     }
 
     public function storeCustomer(Request $request, ReturnService $returnService): RedirectResponse
@@ -215,9 +220,9 @@ class ReturnController extends Controller
             ]);
         } catch (\Throwable $e) {
             Log::error('Fallo al registrar devolucion de cliente.', ['error' => $e->getMessage()]);
-            return redirect()->route('equipo4.devoluciones.index')->withErrors(['error' => 'No se pudo registrar: ' . $e->getMessage()]);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'No se pudo registrar: ' . $e->getMessage()]);
         }
 
-        return redirect()->route('equipo4.devoluciones.index')->with('success', 'Devolución de cliente registrada.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Devolución de cliente registrada.');
     }
 }

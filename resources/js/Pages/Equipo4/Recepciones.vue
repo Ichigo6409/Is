@@ -21,6 +21,7 @@ const columns = ['Folio', 'OC Relacionada', 'Recibido por', 'Estado', 'Fecha rec
 const formattedReceipts = computed(() => {
   return props.receipts.map(r => ({
     ...r,
+    _id: String(r._id || ''),
     'Folio': r.folio,
     'OC Relacionada': r.purchase_order_folio,
     'Recibido por': r.received_by,

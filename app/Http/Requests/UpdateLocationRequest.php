@@ -10,7 +10,10 @@ class UpdateLocationRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        $identity = app(\App\Services\IdentityService::class);
+        $userId   = $identity->resolveCurrentUserId();
+
+        return $identity->userCan($userId, 'almacenes.update');
     }
 
     public function rules(): array
@@ -19,7 +22,7 @@ class UpdateLocationRequest extends FormRequest
 
         return [
             'warehouse_id' => ['required', 'string', function ($attribute, $value, $fail) {
-                if (!Warehouse::where('_id', $value)->where('business_id', 'BUS-CD-SOUV-001')->exists()) {
+                if (!Warehouse::where('_id', $value)->where('business_id', config('team4.business_id'))->exists()) {
                     $fail('El almacén seleccionado no existe.');
                 }
             }],

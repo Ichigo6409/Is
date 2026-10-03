@@ -30,6 +30,7 @@ const statusLabels = { ACTIVE: 'Activa', RESOLVED: 'Resuelta', DISMISSED: 'Desca
 const formattedAlerts = computed(() => {
   return props.alerts.map(a => ({
     ...a,
+    _id: String(a._id || ''),
     'SKU': a.product_sku,
     'Producto': a.product_name,
     'Ubicación': a.location_name,
@@ -45,6 +46,7 @@ const activeAlertsCount = computed(() => props.alerts.filter(a => a.status === '
 const formattedRules = computed(() => {
   return props.rules.map(r => ({
     ...r,
+    _id: String(r._id || ''),
     'SKU': r.product_sku,
     'Producto': r.product_name,
     'Ubicación': r.location_name,
@@ -71,7 +73,7 @@ const openEditRule = (row) => {
 const submitRule = () => {
   ruleForm.put(`/equipo4/reglas-reorden/${selectedRule.value._id}`, {
     preserveScroll: true,
-    onSuccess: () => { showRuleModal.value = false; ruleForm.reset() }
+    onFinish: () => { if (!Object.keys(ruleForm.errors).length) { showRuleModal.value = false; ruleForm.reset() } }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) }
   })
 }
 
@@ -102,7 +104,7 @@ const openDiscardModal = (row) => {
 const submitDiscard = () => {
   discardForm.post(`/equipo4/alertas/${selectedAlert.value._id}/discard`, {
     preserveScroll: true,
-    onSuccess: () => { showDiscardModal.value = false; discardForm.reset(); selectedAlert.value = null }
+    onSuccess: () => { showDiscardModal.value = false; discardForm.reset(); selectedAlert.value = null }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) }
   })
 }
 

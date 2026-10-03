@@ -15,7 +15,12 @@ use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     public function index(Request $request): Response
     {
@@ -137,7 +142,7 @@ class ProductController extends Controller
             // no-op
         }
 
-        return redirect()->back()->with('success', 'Producto creado exitosamente.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Producto creado exitosamente.');
     }
 
     public function update(UpdateProductRequest $request, string $id, ReorderRuleService $reorderService): RedirectResponse
@@ -156,7 +161,7 @@ class ProductController extends Controller
             // no-op
         }
 
-        return redirect()->back()->with('success', 'Producto actualizado exitosamente.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Producto actualizado exitosamente.');
     }
 
     public function destroy(string $id): RedirectResponse
@@ -180,6 +185,6 @@ class ProductController extends Controller
 
         $product->delete();
 
-        return redirect()->back()->with('success', 'Producto eliminado exitosamente.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Producto eliminado exitosamente.');
     }
 }

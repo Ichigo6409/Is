@@ -25,6 +25,7 @@ const statusLabels = { RESERVED: 'Reservada', CONFIRMED: 'Confirmada', RELEASED:
 const formattedReservations = computed(() => {
   return props.reservations.map(r => ({
     ...r,
+    _id: String(r._id || ''),
     'Referencia': r.external_reference || r.reservation_id.slice(0, 12),
     'SKU': r.product_sku,
     'Producto': r.product_name,
@@ -61,7 +62,7 @@ const openCreateModal = () => {
 const submitForm = () => {
   form.post('/equipo4/reservas', {
     preserveScroll: true,
-    onSuccess: () => { showCreateModal.value = false; form.reset() }
+    onFinish: () => { if (!Object.keys(form.errors).length) { showCreateModal.value = false; form.reset() } }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) }
   })
 }
 

@@ -17,7 +17,12 @@ use MongoDB\BSON\ObjectId;
 
 class PurchaseOrderController extends Controller
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     public function index(Request $request): Response
     {
@@ -177,10 +182,10 @@ class PurchaseOrderController extends Controller
             Log::error('Fallo al crear OC.', ['error' => $e->getMessage()]);
             DB::connection('mongodb')->getCollection('purchase_order_items')->deleteMany(['purchase_order_id' => (string) $orderId]);
             DB::connection('mongodb')->getCollection('purchase_orders')->deleteOne(['_id' => $orderId]);
-            return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'No se pudo crear: ' . $e->getMessage()]);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'No se pudo crear: ' . $e->getMessage()]);
         }
 
-        return redirect()->route('equipo4.compras.index')->with('success', 'OC ' . $folio . ' creada.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'OC ' . $folio . ' creada.');
     }
 
     public function update(UpdatePurchaseOrderRequest $request, string $id): RedirectResponse
@@ -189,10 +194,10 @@ class PurchaseOrderController extends Controller
             '_id' => new ObjectId($id),
             'business_id' => $this->businessId,
         ]);
-        if (!$orderDoc) return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'OC no encontrada.']);
+        if (!$orderDoc) return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'OC no encontrada.']);
         $o = (array) $orderDoc;
         if (in_array($o['status'] ?? '', ['CANCELADA', 'RECIBIDA_TOTAL'])) {
-            return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'No se puede editar en estado ' . $o['status'] . '.']);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'No se puede editar en estado ' . $o['status'] . '.']);
         }
 
         $validated = $request->validated();
@@ -236,10 +241,10 @@ class PurchaseOrderController extends Controller
             }
         } catch (\Throwable $e) {
             Log::error('Fallo al actualizar OC.', ['error' => $e->getMessage()]);
-            return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'No se pudo actualizar: ' . $e->getMessage()]);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'No se pudo actualizar: ' . $e->getMessage()]);
         }
 
-        return redirect()->route('equipo4.compras.index')->with('success', 'OC actualizada.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'OC actualizada.');
     }
 
     public function changeStatus(Request $request, string $id): RedirectResponse
@@ -250,40 +255,40 @@ class PurchaseOrderController extends Controller
             '_id' => new ObjectId($id),
             'business_id' => $this->businessId,
         ]);
-        if (!$orderDoc) return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'OC no encontrada.']);
+        if (!$orderDoc) return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'OC no encontrada.']);
         $o = (array) $orderDoc;
         $currentStatus = (string) ($o['status'] ?? '');
 
         if (in_array($currentStatus, ['RECIBIDA_TOTAL', 'CANCELADA'])) {
-            return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'La OC ya está en estado ' . $currentStatus . '.']);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'La OC ya está en estado ' . $currentStatus . '.']);
         }
 
         $action = $validated['action'];
 
         if ($action === 'autorizar') {
             if (!in_array($currentStatus, ['BORRADOR', 'SOLICITADA'])) {
-                return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'Solo se autorizan OCs en Borrador o Solicitada.']);
+                return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'Solo se autorizan OCs en Borrador o Solicitada.']);
             }
             DB::connection('mongodb')->getCollection('purchase_orders')->updateOne(
                 ['_id' => new ObjectId($id)],
                 ['$set' => ['status' => 'AUTORIZADA', 'authorized_by' => 'USR-ADMIN-001', 'updated_at' => now()->toDateTime()]]
             );
-            return redirect()->route('equipo4.compras.index')->with('success', 'OC autorizada.');
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'OC autorizada.');
         }
 
         if ($action === 'cancelar') {
             $hasReceipts = DB::connection('mongodb')->getCollection('goods_receipts')->countDocuments(['purchase_order_id' => $id]) > 0;
             if ($hasReceipts) {
-                return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'No se puede cancelar: tiene recepciones.']);
+                return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'No se puede cancelar: tiene recepciones.']);
             }
             DB::connection('mongodb')->getCollection('purchase_orders')->updateOne(
                 ['_id' => new ObjectId($id)],
                 ['$set' => ['status' => 'CANCELADA', 'updated_at' => now()->toDateTime()]]
             );
-            return redirect()->route('equipo4.compras.index')->with('success', 'OC cancelada.');
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'OC cancelada.');
         }
 
-        return redirect()->route('equipo4.compras.index');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH));
     }
 
     public function show(string $id)
@@ -333,16 +338,16 @@ class PurchaseOrderController extends Controller
             '_id' => new ObjectId($id),
             'business_id' => $this->businessId,
         ]);
-        if (!$orderDoc) return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'OC no encontrada.']);
+        if (!$orderDoc) return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'OC no encontrada.']);
 
         $hasReceipts = DB::connection('mongodb')->getCollection('goods_receipts')->countDocuments(['purchase_order_id' => $id]) > 0;
         if ($hasReceipts) {
-            return redirect()->route('equipo4.compras.index')->withErrors(['error' => 'No se puede eliminar: tiene recepciones.']);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'No se puede eliminar: tiene recepciones.']);
         }
 
         DB::connection('mongodb')->getCollection('purchase_order_items')->deleteMany(['purchase_order_id' => $id]);
         DB::connection('mongodb')->getCollection('purchase_orders')->deleteOne(['_id' => new ObjectId($id)]);
 
-        return redirect()->route('equipo4.compras.index')->with('success', 'OC eliminada.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'OC eliminada.');
     }
 }

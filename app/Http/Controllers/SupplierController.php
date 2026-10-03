@@ -12,7 +12,12 @@ use Illuminate\Http\Request;
 
 class SupplierController extends Controller
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     public function index(Request $request): Response
     {
@@ -83,7 +88,7 @@ class SupplierController extends Controller
         $validated = $request->validated();
         $validated['business_id'] = $this->businessId;
         Supplier::create($validated);
-        return redirect()->route('equipo4.proveedores.index')->with('success', 'Proveedor creado exitosamente.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Proveedor creado exitosamente.');
     }
 
     public function update(UpdateSupplierRequest $request, string $id): RedirectResponse
@@ -91,7 +96,7 @@ class SupplierController extends Controller
         $supplier = Supplier::where('_id', $id)->where('business_id', $this->businessId)->first();
         if (!$supplier) abort(404, 'Proveedor no encontrado.');
         $supplier->update($request->validated());
-        return redirect()->route('equipo4.proveedores.index')->with('success', 'Proveedor actualizado exitosamente.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Proveedor actualizado exitosamente.');
     }
 
     public function destroy(string $id): RedirectResponse
@@ -99,6 +104,6 @@ class SupplierController extends Controller
         $supplier = Supplier::where('_id', $id)->where('business_id', $this->businessId)->first();
         if (!$supplier) abort(404, 'Proveedor no encontrado.');
         $supplier->delete();
-        return redirect()->route('equipo4.proveedores.index')->with('success', 'Proveedor eliminado exitosamente.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Proveedor eliminado exitosamente.');
     }
 }

@@ -13,7 +13,12 @@ use MongoDB\Operation\FindOneAndUpdate;
 
 class Team3ApiService
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
     protected string $reservationsCollection = 'team3_api_reservations';
 
     public function availability(array $items): array
@@ -139,7 +144,7 @@ class Team3ApiService
                 'source' => (string) ($data['source'] ?? 'CHECKOUT'),
                 'idempotency_key' => $idempotencyKey,
                 'items' => $applied,
-                'expires_at' => $expiresAt,
+                'expires_at' => new \MongoDB\BSON\UTCDateTime($expiresAt->getTimestamp() * 1000),
                 'confirmed_at' => null,
                 'released_at' => null,
                 'rejection_reason' => null,

@@ -9,14 +9,17 @@ class StoreSupplierRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        $identity = app(\App\Services\IdentityService::class);
+        $userId   = $identity->resolveCurrentUserId();
+
+        return $identity->userCan($userId, 'proveedores.create');
     }
 
     public function rules(): array
     {
         return [
             'code' => ['required', 'string', 'max:50', 'regex:/^[A-Z0-9\-]+$/', function ($attribute, $value, $fail) {
-                if (Supplier::where('code', $value)->where('business_id', 'BUS-CD-SOUV-001')->exists()) {
+                if (Supplier::where('code', $value)->where('business_id', config('team4.business_id'))->exists()) {
                     $fail('Ya existe un proveedor con ese código.');
                 }
             }],

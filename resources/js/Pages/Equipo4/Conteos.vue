@@ -59,7 +59,8 @@ const openCreateModal = () => {
 const submitCreate = () => {
   createForm.post('/equipo4/conteos', {
     preserveScroll: true,
-    onSuccess: () => { showCreateModal.value = false; createForm.reset() }
+    onFinish: () => { if (!Object.keys(createForm.errors).length) { showCreateModal.value = false; createForm.reset() } }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) },
+    onError: (e) => { console.error('Conteo create error:', e); alert('No se pudo crear: ' + JSON.stringify(e)) }
   })
 }
 
@@ -81,7 +82,7 @@ const saveCapture = () => {
   const items = captureItems.value.map(i => ({ item_id: i._id, counted_qty: Number(i.counted_qty_input) || 0 }))
   router.post(`/equipo4/conteos/${selectedCount.value._id}/capture`, { items }, {
     preserveScroll: true,
-    onSuccess: () => { showCaptureModal.value = false; selectedCount.value = null }
+    onFinish: () => { showCaptureModal.value = false; selectedCount.value = null }
   })
 }
 
@@ -93,7 +94,7 @@ const closeCount = () => {
   if (!confirm(msg)) return
   router.post(`/equipo4/conteos/${selectedCount.value._id}/close`, {}, {
     preserveScroll: true,
-    onSuccess: () => { showCaptureModal.value = false; selectedCount.value = null }
+    onFinish: () => { showCaptureModal.value = false; selectedCount.value = null }
   })
 }
 
@@ -105,9 +106,18 @@ const confirmDelete = (row) => {
 
 const deleteCount = () => {
   if (!selectedCount.value) return
-  router.delete(`/equipo4/conteos/${selectedCount.value._id}`, {
+  const id = selectedCount.value._id
+  router.delete(`/equipo4/conteos/${id}`, {
     preserveScroll: true,
-    onSuccess: () => { showDeleteModal.value = false; selectedCount.value = null }
+    onSuccess: () => {
+      showDeleteModal.value = false
+      selectedCount.value = null
+      // Forzar recarga del navegador para asegurar props frescos
+      window.location.href = '/equipo4/conteos'
+    },
+    onError: (errors) => {
+      console.error('[DELETE ERROR]', errors)
+    }
   })
 }
 

@@ -26,6 +26,7 @@ const columns = ['Folio', 'Tipo', 'Referencia', 'Motivo', 'Resolución', 'Tercer
 const formattedReturns = computed(() => {
   return props.returns.map(r => ({
     ...r,
+    _id: String(r._id || ''),
     'Folio': r.folio,
     'Tipo': r.type,
     'Referencia': r.reference || '—',
@@ -70,14 +71,14 @@ const openCustomerModal = () => {
 const submitSupplier = () => {
   supplierForm.post('/equipo4/devoluciones/proveedor', {
     preserveScroll: true,
-    onSuccess: () => { showSupplierModal.value = false; supplierForm.reset() }
+    onFinish: () => { if (!Object.keys(supplierForm.errors).length) { showSupplierModal.value = false; supplierForm.reset() } }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) }
   })
 }
 
 const submitCustomer = () => {
   customerForm.post('/equipo4/devoluciones/cliente', {
     preserveScroll: true,
-    onSuccess: () => { showCustomerModal.value = false; customerForm.reset() }
+    onFinish: () => { if (!Object.keys(customerForm.errors).length) { showCustomerModal.value = false; customerForm.reset() } }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) }
   })
 }
 

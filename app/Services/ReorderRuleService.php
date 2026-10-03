@@ -10,7 +10,12 @@ use MongoDB\BSON\ObjectId;
 
 class ReorderRuleService
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     /**
      * Calcula el punto de reorden como el punto medio entre min y max.

@@ -24,6 +24,7 @@ const columns = ['SKU', 'Producto', 'Categoría', 'Stock mín.', 'Stock máx.', 
 const formattedProducts = computed(() => {
   return props.products.map(p => ({
     ...p,
+    _id: String(p._id || ''),
     SKU: p.sku,
     Producto: p.name,
     'Categoría': p.category,

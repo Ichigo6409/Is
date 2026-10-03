@@ -16,7 +16,12 @@ use MongoDB\BSON\ObjectId;
 
 class CostController extends Controller
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     private function formatRawDate($value, string $format = 'Y-m-d H:i'): ?string
     {
@@ -140,10 +145,10 @@ class CostController extends Controller
             ]);
         } catch (\Throwable $e) {
             Log::error('Fallo al registrar costo.', ['error' => $e->getMessage()]);
-            return redirect()->route('equipo4.costos.index')->withErrors(['error' => 'No se pudo registrar: ' . $e->getMessage()]);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'No se pudo registrar: ' . $e->getMessage()]);
         }
 
-        return redirect()->route('equipo4.costos.index')->with('success', 'Costo registrado.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Costo registrado.');
     }
 
     public function history(string $productId)

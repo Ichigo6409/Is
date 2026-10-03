@@ -21,6 +21,7 @@ const columns = ['SKU', 'Producto', 'Almacén', 'Ubicación', 'Existencia', 'Res
 const formattedInventory = computed(() => {
   return props.inventory.map(i => ({
     ...i,
+    _id: String(i._id || ''),
     SKU: i.sku,
     Producto: i.product_name,
     'Almacén': i.warehouse_name,
@@ -55,7 +56,8 @@ const submitForm = () => {
   if (!form.inventory_id) return
   form.post('/equipo4/inventario/adjust', {
     preserveScroll: true,
-    onSuccess: () => { showModal.value = false; form.reset() }
+    onSuccess: () => { showModal.value = false; form.reset() }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) },
+    onError: (e) => { console.error('Inventario error:', e); alert('No se pudo ajustar: ' + JSON.stringify(e)) }
   })
 }
 </script>

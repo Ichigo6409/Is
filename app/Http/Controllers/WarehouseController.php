@@ -13,7 +13,12 @@ use Illuminate\Http\Request;
 
 class WarehouseController extends Controller
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     public function index(Request $request): Response
     {
@@ -102,7 +107,7 @@ class WarehouseController extends Controller
         $validated = $request->validated();
         $validated['business_id'] = $this->businessId;
         Warehouse::create($validated);
-        return redirect()->route('equipo4.almacenes.index')->with('success', 'Almacén creado exitosamente.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Almacén creado exitosamente.');
     }
 
     public function update(UpdateWarehouseRequest $request, string $id): RedirectResponse
@@ -110,7 +115,7 @@ class WarehouseController extends Controller
         $warehouse = Warehouse::where('_id', $id)->where('business_id', $this->businessId)->first();
         if (!$warehouse) abort(404, 'Almacén no encontrado.');
         $warehouse->update($request->validated());
-        return redirect()->route('equipo4.almacenes.index')->with('success', 'Almacén actualizado exitosamente.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Almacén actualizado exitosamente.');
     }
 
     public function destroy(string $id): RedirectResponse
@@ -120,10 +125,10 @@ class WarehouseController extends Controller
 
         $locationsCount = Location::where('warehouse_id', $id)->count();
         if ($locationsCount > 0) {
-            return redirect()->back()->withErrors(['error' => 'No se puede eliminar: el almacén tiene ' . $locationsCount . ' ubicaciones asociadas.']);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'No se puede eliminar: el almacén tiene ' . $locationsCount . ' ubicaciones asociadas.']);
         }
 
         $warehouse->delete();
-        return redirect()->route('equipo4.almacenes.index')->with('success', 'Almacén eliminado exitosamente.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Almacén eliminado exitosamente.');
     }
 }

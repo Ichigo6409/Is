@@ -16,7 +16,12 @@ use Illuminate\Support\Facades\Log;
 
 class ReservationController extends Controller
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     private function formatRawDate($value, string $format = 'Y-m-d H:i'): ?string
     {
@@ -56,7 +61,7 @@ class ReservationController extends Controller
             $product = $productsMap->get((string) ($attrs['product_id'] ?? ''));
             $location = $locationsMap->get((string) ($attrs['location_id'] ?? ''));
 
-            $rawId = $attrs['_id'] ?? null;
+            $rawId = $c->_id ?? $attrs['_id'] ?? null;
             $idString = '';
             if ($rawId instanceof \MongoDB\BSON\ObjectId) $idString = (string) $rawId;
             elseif (is_string($rawId)) $idString = $rawId;
@@ -145,10 +150,10 @@ class ReservationController extends Controller
             ]);
         } catch (\Throwable $e) {
             Log::error('Fallo al crear reserva.', ['error' => $e->getMessage()]);
-            return redirect()->route('equipo4.reservas.index')->withErrors(['error' => 'No se pudo reservar: ' . $e->getMessage()]);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'No se pudo reservar: ' . $e->getMessage()]);
         }
 
-        return redirect()->route('equipo4.reservas.index')->with('success', 'Reserva creada exitosamente.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Reserva creada exitosamente.');
     }
 
     public function release(string $id, ReservationService $reservationService): RedirectResponse
@@ -157,9 +162,9 @@ class ReservationController extends Controller
             $reservationService->release($id, 'MANUAL');
         } catch (\Throwable $e) {
             Log::error('Fallo al liberar reserva.', ['id' => $id, 'error' => $e->getMessage()]);
-            return redirect()->route('equipo4.reservas.index')->withErrors(['error' => 'No se pudo liberar: ' . $e->getMessage()]);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'No se pudo liberar: ' . $e->getMessage()]);
         }
-        return redirect()->route('equipo4.reservas.index')->with('success', 'Reserva liberada y stock devuelto.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Reserva liberada y stock devuelto.');
     }
 
     public function expireOverdue(ReservationService $reservationService): RedirectResponse
@@ -167,8 +172,8 @@ class ReservationController extends Controller
         try {
             $count = $reservationService->expireOverdue();
         } catch (\Throwable $e) {
-            return redirect()->route('equipo4.reservas.index')->withErrors(['error' => 'Error: ' . $e->getMessage()]);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'Error: ' . $e->getMessage()]);
         }
-        return redirect()->route('equipo4.reservas.index')->with('success', $count . ' reserva(s) vencida(s) liberada(s).');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', $count . ' reserva(s) vencida(s) liberada(s).');
     }
 }

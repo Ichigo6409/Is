@@ -8,6 +8,15 @@ return [
     'api_timeout' => (int) env('TEAM1_TIMEOUT', 5),
     'cache_ttl' => (int) env('TEAM1_CACHE_TTL', 60),
 
+    // NUEVO: default 300s — debe coincidir con Eq. 1
+    'allowed_clock_skew' => (int) env('TEAM1_ALLOWED_CLOCK_SKEW', 300),
+
+    // NUEVO: si Eq. 1 no expone 'scope', asumimos este
+    'role_scope_default' => env('TEAM1_ROLE_SCOPE_DEFAULT', 'global'),
+
+    // NUEVO: roles que SIEMPRE son globales (ignoran scope del Eq. 1)
+    'global_roles'       => ['admin', 'auditor'],
+
     /*
     |--------------------------------------------------------------------------
     | Roles autorizados en el Eq. 4

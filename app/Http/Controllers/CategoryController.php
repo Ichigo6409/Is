@@ -8,7 +8,12 @@ use Inertia\Inertia;
 
 class CategoryController extends Controller
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     public function index()
     {
@@ -45,7 +50,7 @@ class CategoryController extends Controller
             $data
         );
 
-        return redirect()->back();
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH));
     }
 
     public function update(Request $request, string $id)
@@ -61,7 +66,7 @@ class CategoryController extends Controller
         $data['slug'] = Str::slug($data['name']);
         $cat->update($data);
 
-        return redirect()->back();
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH));
     }
 
     public function destroy(string $id)
@@ -69,6 +74,6 @@ class CategoryController extends Controller
         $cat = Category::where('business_id', $this->businessId)->findOrFail($id);
         $cat->delete();
 
-        return redirect()->back();
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH));
     }
 }

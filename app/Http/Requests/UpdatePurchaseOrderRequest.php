@@ -10,14 +10,17 @@ class UpdatePurchaseOrderRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        $identity = app(\App\Services\IdentityService::class);
+        $userId   = $identity->resolveCurrentUserId();
+
+        return $identity->userCan($userId, 'compras.update');
     }
 
     public function rules(): array
     {
         return [
             'supplier_id' => ['required', 'string', function ($attribute, $value, $fail) {
-                if (!Supplier::where('_id', $value)->where('business_id', 'BUS-CD-SOUV-001')->exists()) {
+                if (!Supplier::where('_id', $value)->where('business_id', config('team4.business_id'))->exists()) {
                     $fail('El proveedor seleccionado no existe.');
                 }
             }],
@@ -26,7 +29,7 @@ class UpdatePurchaseOrderRequest extends FormRequest
             'status' => 'required|string|in:BORRADOR,SOLICITADA,AUTORIZADA,CANCELADA',
             'items' => 'required|array|min:1|max:100',
             'items.*.product_id' => ['required', 'string', function ($attribute, $value, $fail) {
-                if (!Product::where('_id', $value)->where('business_id', 'BUS-CD-SOUV-001')->exists()) {
+                if (!Product::where('_id', $value)->where('business_id', config('team4.business_id'))->exists()) {
                     $fail('Uno de los productos seleccionados no existe.');
                 }
             }],

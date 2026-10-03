@@ -11,7 +11,12 @@ use MongoDB\BSON\ObjectId;
 
 class CostService
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     /**
      * Registra un costo para un producto y actualiza su PricingReference.
@@ -26,7 +31,7 @@ class CostService
         $source = (string) ($data['source'] ?? 'MANUAL');
         $reference = isset($data['reference']) ? (string) $data['reference'] : '';
         $notes = isset($data['notes']) ? (string) $data['notes'] : '';
-        $actorId = (string) ($data['actor_id'] ?? 'USR-ADMIN-001');
+        $actorId = (string) ($data['actor_id'] ?? ActorResolver::resolve('USR-ADMIN-001'));
         $suggestedPrice = isset($data['suggested_price']) && $data['suggested_price'] !== null
             ? (float) $data['suggested_price']
             : null;

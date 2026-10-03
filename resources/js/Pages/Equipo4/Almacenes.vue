@@ -29,6 +29,7 @@ const locationTypeLabels = { STORAGE: 'Almacenaje', DISPLAY: 'Exhibición', RECE
 const formattedWarehouses = computed(() => {
   return props.warehouses.map(w => ({
     ...w,
+    _id: String(w._id || ''),
     'Código': w.code,
     'Almacén': w.name,
     'Tipo': warehouseTypeLabels[w.type] || w.type,
@@ -94,11 +95,11 @@ const confirmDelete = (row) => {
 const submitForm = () => {
   if (isEditing.value) {
     form.put(`/equipo4/almacenes/${selectedWarehouse.value._id}`, {
-      onSuccess: () => { showModal.value = false; form.reset() }
+      onSuccess: () => { showModal.value = false; form.reset() }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) }
     })
   } else {
     form.post('/equipo4/almacenes', {
-      onSuccess: () => { showModal.value = false; form.reset() }
+      onSuccess: () => { showModal.value = false; form.reset() }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) }
     })
   }
 }
@@ -106,7 +107,7 @@ const submitForm = () => {
 const deleteWarehouse = () => {
   if (!selectedWarehouse.value) return
   router.delete(`/equipo4/almacenes/${selectedWarehouse.value._id}`, {
-    onSuccess: () => { showDeleteModal.value = false; selectedWarehouse.value = null }
+    onSuccess: () => { showDeleteModal.value = false; selectedWarehouse.value = null }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) }
   })
 }
 
@@ -151,11 +152,11 @@ const confirmLocationDelete = (row) => {
 const submitLocationForm = () => {
   if (isEditingLocation.value) {
     locationForm.put(`/equipo4/ubicaciones/${selectedLocation.value._id}`, {
-      onSuccess: () => { showLocationModal.value = false; locationForm.reset() }
+      onFinish: () => { if (!Object.keys(locationForm.errors).length) { showLocationModal.value = false; locationForm.reset() } }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) }
     })
   } else {
     locationForm.post('/equipo4/ubicaciones', {
-      onSuccess: () => { showLocationModal.value = false; locationForm.reset() }
+      onFinish: () => { if (!Object.keys(locationForm.errors).length) { showLocationModal.value = false; locationForm.reset() } }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) }
     })
   }
 }
@@ -163,7 +164,7 @@ const submitLocationForm = () => {
 const deleteLocation = () => {
   if (!selectedLocation.value) return
   router.delete(`/equipo4/ubicaciones/${selectedLocation.value._id}`, {
-    onSuccess: () => { showLocationDeleteModal.value = false; selectedLocation.value = null }
+    onSuccess: () => { showLocationDeleteModal.value = false; selectedLocation.value = null }, onError: (errs) => { console.error("[MODAL ERROR]", errs); window.scrollTo({top:0,behavior:"smooth"}) }
   })
 }
 </script>

@@ -17,7 +17,12 @@ use MongoDB\BSON\ObjectId;
 
 class GoodsReceiptController extends Controller
 {
-    protected string $businessId = 'BUS-CD-SOUV-001';
+
+    public function __construct()
+    {
+        $this->businessId = (string) config('team4.business_id', 'BUS-CD-SOUV-001');
+    }
+    protected string $businessId;
 
     public function index(Request $request): Response
     {
@@ -50,7 +55,7 @@ class GoodsReceiptController extends Controller
             }
 
             return [
-                '_id' => (string) ($attrs['_id'] ?? ''),
+                '_id' => (string) ($c->_id ?? $w->_id ?? $s->_id ?? $p->_id ?? $i->_id ?? $r->_id ?? $a->_id ?? $o->_id ?? $u->_id ?? ''),
                 'folio' => (string) ($attrs['folio'] ?? ''),
                 'purchase_order_id' => (string) ($attrs['purchase_order_id'] ?? ''),
                 'purchase_order_folio' => $order ? (string) $order->folio : 'Desconocida',
@@ -142,11 +147,11 @@ class GoodsReceiptController extends Controller
             ->where('business_id', $this->businessId)
             ->first();
 
-        if (!$order) return redirect()->route('equipo4.recepciones.index')->withErrors(['error' => 'Orden de compra no encontrada.']);
-        if ($order->status !== 'AUTORIZADA') return redirect()->route('equipo4.recepciones.index')->withErrors(['error' => 'Solo se pueden recibir OCs en estado AUTORIZADA.']);
+        if (!$order) return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'Orden de compra no encontrada.']);
+        if ($order->status !== 'AUTORIZADA') return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'Solo se pueden recibir OCs en estado AUTORIZADA.']);
 
         $defaultLocationId = $this->getDefaultLocationId();
-        if (empty($defaultLocationId)) return redirect()->route('equipo4.recepciones.index')->withErrors(['error' => 'No hay ubicaciones configuradas.']);
+        if (empty($defaultLocationId)) return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'No hay ubicaciones configuradas.']);
 
         $folio = 'REC-' . str_pad((string) (GoodsReceipt::where('business_id', $this->businessId)->count() + 1), 5, '0', STR_PAD_LEFT);
 
@@ -247,10 +252,10 @@ class GoodsReceiptController extends Controller
             if (!empty($createdReceiptItemIds)) { try { GoodsReceiptItem::whereIn('_id', $createdReceiptItemIds)->delete(); } catch (\Throwable $ex) {} }
             if ($receipt !== null && $receipt->_id) { try { $receipt->delete(); } catch (\Throwable $ex) {} }
 
-            return redirect()->route('equipo4.recepciones.index')->withErrors(['error' => 'No se pudo registrar la recepción: ' . $e->getMessage()]);
+            return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors(['error' => 'No se pudo registrar la recepción: ' . $e->getMessage()]);
         }
 
-        return redirect()->route('equipo4.recepciones.index')->with('success', 'Recepción ' . $folio . ' registrada.');
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->with('success', 'Recepción ' . $folio . ' registrada.');
     }
 
     private function getDefaultLocationId(): string
@@ -264,7 +269,7 @@ class GoodsReceiptController extends Controller
         $receipt = GoodsReceipt::where('_id', $id)->where('business_id', $this->businessId)->first();
         if (!$receipt) abort(404, 'Recepción no encontrada.');
 
-        return redirect()->route('equipo4.recepciones.index')->withErrors([
+        return redirect(parse_url(request()->headers->get("referer") ?: "/", PHP_URL_PATH))->withErrors([
             'error' => 'Las recepciones no se pueden eliminar porque ya afectaron el stock.'
         ]);
     }

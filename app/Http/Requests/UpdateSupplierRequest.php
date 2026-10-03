@@ -9,7 +9,10 @@ class UpdateSupplierRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        $identity = app(\App\Services\IdentityService::class);
+        $userId   = $identity->resolveCurrentUserId();
+
+        return $identity->userCan($userId, 'proveedores.update');
     }
 
     public function rules(): array
@@ -18,7 +21,7 @@ class UpdateSupplierRequest extends FormRequest
 
         return [
             'code' => ['required', 'string', 'max:50', 'regex:/^[A-Z0-9\-]+$/', function ($attribute, $value, $fail) use ($supplierId) {
-                if (Supplier::where('code', $value)->where('business_id', 'BUS-CD-SOUV-001')->where('_id', '!=', $supplierId)->exists()) {
+                if (Supplier::where('code', $value)->where('business_id', config('team4.business_id'))->where('_id', '!=', $supplierId)->exists()) {
                     $fail('Ya existe otro proveedor con ese código.');
                 }
             }],
