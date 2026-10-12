@@ -1,7 +1,6 @@
 <script setup>
 import { usePage } from '@inertiajs/vue3'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import logoUrl from '@/../images/campus-digital-logo.png'
 import { usePermissions } from '@/Composables/usePermissions'
 
 const page = usePage()
@@ -121,34 +120,120 @@ const groupModules = computed(() => {
   return result
 })
 
-function isModuleActive(module) { return page.url.startsWith(module.href) }
-
 // Solo mostrar el badge de alertas si el usuario puede ver alertas
 const showAlertsBadge = computed(() => can('alertas.view') && alertsCount.value > 0)
+
+// Pills superiores: el Dashboard se representa con el icono de casa
+const pillGroups = computed(() => navGroups.value.filter(g => g.label !== 'Dashboard'))
+const dashboardGroup = computed(() => navGroups.value.find(g => g.label === 'Dashboard') || null)
+
+// Contenido del sidebar: secciones del grupo activo
+const sidebarTitle = computed(() => (activeGroup.value && activeGroup.value !== 'Dashboard') ? activeGroup.value : 'General')
+const sidebarItems = computed(() => {
+  const g = activeGroup.value
+  if (g && g !== 'Dashboard' && groupModules.value[g]?.length) return groupModules.value[g]
+  return [{ label: 'Resumen', href: '/equipo4' }]
+})
+
+function isSidebarActive(item) {
+  if (item.href === '/equipo4') return page.url === '/equipo4'
+  return page.url.startsWith(item.href)
+}
+
+// Iconos (trazos outline 24x24) por modulo
+const icons = {
+  cube: 'M21 8l-9-5-9 5v8l9 5 9-5V8z M3 8l9 5 9-5 M12 13v8',
+  list: 'M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01',
+  coin: 'M12 3a9 9 0 100 18 9 9 0 000-18z M12 7v10 M9 10c0-1.2 1.3-2 3-2s3 .8 3 2-1.3 1.6-3 2-3 .8-3 2 1.3 2 3 2 3-.8 3-2',
+  bell: 'M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.7 21a2 2 0 01-3.4 0',
+  back: 'M3 10h11a5 5 0 010 10H9 M7 6l-4 4 4 4',
+  check: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 3h6v4H9z M9 14l2 2 4-4',
+  home: 'M3 12l9-9 9 9 M5 10v10h5v-6h4v6h5V10',
+  building: 'M3 21h18 M5 21V7l7-4 7 4v14 M9 21v-6h6v6',
+  users: 'M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2 M10 3a4 4 0 100 8 4 4 0 000-8z M21 21v-2a4 4 0 00-3-3.9 M16 3.1a4 4 0 010 7.8',
+  tag: 'M3 12V3h9l9 9-9 9-9-9z M7.5 7.5h.01',
+  truck: 'M1 6h13v10H1z M14 9h4l4 4v3h-8z M6 19a2 2 0 100-4 2 2 0 000 4z M18 19a2 2 0 100-4 2 2 0 000 4z',
+  clipboard: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 3h6v4H9z',
+  lock: 'M5 11h14v10H5z M8 11V7a4 4 0 018 0v4',
+}
+const iconByHref = {
+  '/equipo4': 'home',
+  '/equipo4/productos': 'cube', '/equipo4/souvenirs': 'tag', '/equipo4/costos': 'coin', '/equipo4/categorias': 'list',
+  '/equipo4/inventario': 'cube', '/equipo4/almacenes': 'building', '/equipo4/kardex': 'list', '/equipo4/reservas': 'lock',
+  '/equipo4/proveedores': 'users', '/equipo4/compras': 'clipboard', '/equipo4/recepciones': 'truck',
+  '/equipo4/devoluciones': 'back', '/equipo4/alertas': 'bell', '/equipo4/conteos': 'check',
+}
+function iconPath(href) { return icons[iconByHref[href] || 'cube'] }
 </script>
 
 <template>
-  <div class="min-h-screen bg-[#F5F8FC] text-slate-800 antialiased">
-    <header class="sticky top-0 z-40 bg-white border-b border-slate-200">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex h-16 items-center justify-between">
-          <a href="/equipo4" class="flex items-center">
-            <img :src="logoUrl" alt="Campus Digital" class="h-8 w-auto">
+  <div class="min-h-screen bg-[#F4F7FB] text-slate-800 antialiased">
+    <!-- Sidebar -->
+    <aside class="hidden lg:flex fixed inset-y-0 left-0 z-40 w-[252px] flex-col bg-[#102F82] text-white">
+      <a href="/equipo4" class="flex items-center gap-3 px-5 h-[72px] border-b border-white/10">
+        <span class="grid place-items-center w-10 h-10 rounded-xl bg-[#2F6BE8]">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/></svg>
+        </span>
+        <span class="leading-tight">
+          <span class="block text-base font-bold">Campus</span>
+          <span class="block text-xs text-blue-200">Digital · Equipo 4</span>
+        </span>
+      </a>
+
+      <div class="px-4 pt-6 flex-1 overflow-y-auto">
+        <p class="px-3 mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-300">{{ sidebarTitle }}</p>
+        <nav class="space-y-1">
+          <a
+            v-for="item in sidebarItems"
+            :key="item.href"
+            :href="item.href"
+            :class="isSidebarActive(item)
+              ? 'flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium bg-[#2F6BE8] text-white'
+              : 'flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 transition'"
+          >
+            <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="iconPath(item.href)"/></svg>
+            <span class="flex-1">{{ item.label }}</span>
+            <span v-if="item.label === 'Alertas' && showAlertsBadge" class="min-w-[20px] h-5 px-1.5 grid place-items-center rounded-full bg-rose-500 text-white text-[10px] font-bold">
+              {{ alertsCount > 9 ? '9+' : alertsCount }}
+            </span>
+          </a>
+        </nav>
+      </div>
+
+      <p class="px-5 py-4 text-[11px] text-blue-300 border-t border-white/10">Campus Digital · Equipo 4 · 2026</p>
+    </aside>
+
+    <div class="lg:pl-[252px]">
+      <!-- Barra superior -->
+      <header class="sticky top-0 z-30 bg-white border-b border-slate-200">
+        <div class="flex h-[72px] items-center gap-3 px-4 sm:px-6">
+          <a href="/equipo4" class="lg:hidden grid place-items-center w-10 h-10 rounded-xl bg-[#2F6BE8] text-white shrink-0" aria-label="Inicio">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/></svg>
           </a>
 
-          <nav class="hidden md:flex items-center gap-1 sm:-my-px">
+          <nav class="flex items-center gap-2 overflow-x-auto flex-1 min-w-0">
             <a
-              v-for="group in navGroups"
+              v-if="dashboardGroup"
+              href="/equipo4"
+              aria-label="Dashboard"
+              :class="isActive(dashboardGroup)
+                ? 'grid place-items-center w-10 h-10 rounded-full bg-[#1B3A8F] text-white shrink-0'
+                : 'grid place-items-center w-10 h-10 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition shrink-0'"
+            >
+              <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="icons.home"/></svg>
+            </a>
+            <a
+              v-for="group in pillGroups"
               :key="group.label"
               :href="group.href"
               :class="isActive(group)
-                ? 'inline-flex items-center px-3 py-2 text-sm font-semibold text-[#00338D] border-b-2 border-[#0284C7]'
-                : 'inline-flex items-center px-3 py-2 text-sm font-medium text-slate-500 hover:text-[#00338D] hover:border-b-2 hover:border-slate-300 border-b-2 border-transparent transition'"
+                ? 'inline-flex items-center gap-2 px-4 h-10 rounded-full text-sm font-semibold bg-[#1B3A8F] text-white whitespace-nowrap'
+                : 'inline-flex items-center gap-2 px-4 h-10 rounded-full text-sm font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition whitespace-nowrap'"
             >
               {{ group.label }}
               <span
                 v-if="group.label === 'Operación' && showAlertsBadge"
-                class="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-white text-[10px] font-bold"
+                class="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold"
                 :title="alertsCount + ' alerta(s) urgente(s)'"
               >
                 {{ alertsCount > 9 ? '9+' : alertsCount }}
@@ -156,22 +241,24 @@ const showAlertsBadge = computed(() => can('alertas.view') && alertsCount.value 
             </a>
           </nav>
 
-          <div ref="userMenuRef" class="relative">
+          <a v-if="can('alertas.view')" href="/equipo4/alertas" class="relative grid place-items-center w-10 h-10 rounded-full text-amber-500 hover:bg-slate-100 transition shrink-0" aria-label="Alertas">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path :d="icons.bell"/></svg>
+            <span v-if="showAlertsBadge" class="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-white"></span>
+          </a>
+
+          <div ref="userMenuRef" class="relative shrink-0">
             <button
               type="button"
               @click="toggleUserMenu"
-              class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-600 transition hover:bg-slate-50 focus:outline-none"
+              class="flex items-center gap-3 rounded-full pl-3 pr-1 py-1 text-sm transition hover:bg-slate-50 focus:outline-none"
             >
-              <div class="hidden md:flex flex-col items-end leading-tight">
-                <span class="text-sm font-medium text-slate-800">{{ currentUser.name }}</span>
-                <span class="text-[10px] text-slate-500">{{ currentRoleLabel }}</span>
+              <div class="hidden md:flex flex-col items-end leading-tight text-right">
+                <span class="text-sm font-semibold text-slate-800">{{ currentUser.name }}</span>
+                <span class="text-[11px] text-slate-400">{{ currentRoleLabel }}</span>
               </div>
-              <span class="w-9 h-9 rounded-full bg-[#00338D] text-white grid place-items-center text-xs font-bold">
+              <span class="w-10 h-10 rounded-full bg-[#1B3A8F] text-white grid place-items-center text-xs font-bold">
                 {{ currentUser.initials }}
               </span>
-              <svg class="hidden md:inline h-4 w-4 -mr-0.5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-              </svg>
             </button>
 
             <Transition
@@ -184,52 +271,37 @@ const showAlertsBadge = computed(() => can('alertas.view') && alertsCount.value 
             >
               <div
                 v-show="showingUserMenu"
-                class="absolute right-0 mt-2 w-64 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 z-50"
+                class="absolute right-0 mt-2 w-64 origin-top-right rounded-xl bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 z-50"
               >
                 <div class="px-4 py-3 border-b border-slate-100">
                   <p class="text-sm font-semibold text-slate-800">{{ currentUser.name }}</p>
                   <p class="text-xs text-slate-500 truncate">{{ currentUser.email }}</p>
-                  <p class="text-[10px] text-[#0284C7] font-semibold mt-1">{{ currentRoleLabel }}</p>
+                  <p class="text-[10px] text-[#2F6BE8] font-semibold mt-1">{{ currentRoleLabel }}</p>
                 </div>
-
-                <a href="/equipo4" class="block px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
-                  Inicio
-                </a>
+                <a href="/equipo4" class="block px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-50">Inicio</a>
               </div>
             </Transition>
           </div>
         </div>
-      </div>
-    </header>
 
-    <div v-if="activeGroup && groupModules[activeGroup] && groupModules[activeGroup].length > 0" class="bg-white border-b border-slate-200">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <nav class="flex gap-6 -mb-px overflow-x-auto">
+        <!-- Secciones en pantallas pequeñas (el sidebar se oculta) -->
+        <nav v-if="sidebarItems.length > 1" class="lg:hidden flex gap-2 overflow-x-auto px-4 sm:px-6 pb-3">
           <a
-            v-for="mod in groupModules[activeGroup]"
-            :key="mod.href"
-            :href="mod.href"
-            :class="isModuleActive(mod)
-              ? 'inline-flex items-center py-3 text-sm font-semibold text-[#00338D] border-b-2 border-[#00338D] whitespace-nowrap'
-              : 'inline-flex items-center py-3 text-sm font-medium text-slate-500 hover:text-[#00338D] hover:border-b-2 hover:border-slate-300 border-b-2 border-transparent whitespace-nowrap transition'"
-          >
-            {{ mod.label }}
-            <span v-if="mod.label === 'Alertas' && showAlertsBadge" class="ml-2 w-2 h-2 rounded-full bg-rose-600"></span>
-          </a>
+            v-for="item in sidebarItems"
+            :key="item.href"
+            :href="item.href"
+            :class="isSidebarActive(item)
+              ? 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#2F6BE8] text-white whitespace-nowrap'
+              : 'px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 whitespace-nowrap'"
+          >{{ item.label }}</a>
         </nav>
-      </div>
+      </header>
+
+      <main>
+        <div class="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8 py-8">
+          <slot />
+        </div>
+      </main>
     </div>
-
-    <main>
-      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-        <slot />
-      </div>
-    </main>
-
-    <footer class="border-t border-slate-200 bg-white mt-12">
-      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 text-xs text-slate-500">
-        Campus Digital · Equipo 4 · 2026
-      </div>
-    </footer>
   </div>
 </template>

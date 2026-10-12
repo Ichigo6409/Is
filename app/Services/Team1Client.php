@@ -122,7 +122,11 @@ class Team1Client
         $timestamp = (string) time();
         $rawBody   = empty($body) ? '' : json_encode($body);
         $bodyHash  = hash('sha256', $rawBody);
-        $payload   = "{$timestamp}|{$method}|{$path}|{$bodyHash}";
+        // La firma debe incluir el path TAL COMO lo ve Eq.1 (con el prefijo del api_url).
+        // Ej: api_url = https://eq1.example.com/api + path = /users/X -> firmar /api/users/X
+        $fullUrl   = "{$this->baseUrl}{$path}";
+        $signPath  = parse_url($fullUrl, PHP_URL_PATH) ?: $path;
+        $payload   = "{$timestamp}|{$method}|{$signPath}|{$bodyHash}";
         $signature = hash_hmac('sha256', $payload, $this->secret);
 
         $request = Http::timeout($this->timeout)

@@ -1,398 +1,187 @@
-```markdown
+﻿# Integracion con Equipo 7 - Recompensas
 
-\# Integración con Equipo 7 — Recompensas
+**Rol de Eq.4**: Servidor (exponemos API a Eq.7)
+**Controller**: `App\Api\Team7ApiController`
+**Adapter**: `App\Services\Team7AdapterService`
+**Base path**: `/api/v1/inventory`
 
-
-
-\*\*Rol de Eq.4\*\*: Servidor (exponemos API a Eq.7)
-
-\*\*Controller\*\*: `App\\Api\\Team7ApiController`
-
-\*\*Adapter\*\*: `App\\Services\\Team7AdapterService`
-
-\*\*Base path\*\*: `/api/v1/inventory`
-
-
-
-\## Contexto
-
-
+## Contexto
 
 Eq.7 canjea recompensas fisicas. Necesita reservar stock cuando un usuario aplica una recompensa, confirmar el consumo cuando se entrega, y liberar cuando expira.
 
+Eq.4 expone una API adaptada al vocabulario de Eq.7 (SKUs en lugar de IDs de Mongo, `origin_reference` en lugar de `order_id`, etc.) que internamente reusa el mismo motor de reservas de Eq.3.
 
+## Endpoints expuestos (5)
 
-Eq.4 expone una API adaptada al vocabulario de Eq.7 (SKUs en lugar de IDs de Mongo, origin\_reference en lugar de order\_id, etc.) que internamente reusa el mismo motor de reservas de Eq.3.
+Todos requieren firma HMAC-SHA256 con `TEAM_SERVICE_SHARED_SECRET`.
 
+### 1. GET /availability
 
+Query params:
+- `product_reference` (required): SKU o ObjectId
+- `variant_sku` (optional)
+- `location_id` (optional)
+- `quantity` (optional, default 1)
+- `business_id` (optional)
 
-\## Endpoints expuestos (5)
+Response 200:
+```json
+{
+  "available": true,
+  "available_quantity": 48,
+  "warehouse_id": "6abf...",
+  "items": [{
+    "product_reference": "SOUV-TAZA-001",
+    "variant_sku": null,
+    "requested": 2,
+    "available": 48,
+    "has_enough": true,
+    "warehouse_id": "6abf..."
+  }]
+}
+```
 
+Response 404 (SKU inexistente):
+```json
+{ "error": "product_not_found", "message": "product_reference no encontrado: XXX" }
+```
 
+Tambien hay `POST /availability` con body `{ items: [...] }` para bulk.
 
-Todos requieren firma HMAC-SHA256 con `TEAM\_SERVICE\_SHARED\_SECRET`.
+### 2. POST /reservations
 
+Acepta body flat (spec E7):
+```json
+{
+  "origin_reference": "RWD-2026-ABC123",
+  "origin_type": "REWARD",
+  "product_reference": "SOUV-TAZA-001",
+  "variant_sku": null,
+  "location_id": null,
+  "quantity": 1,
+  "idempotency_key": "e7-reserve-RWD-2026-ABC123",
+  "expires_at": "2026-10-02T21:00:00-06:00"
+}
+```
 
+Tambien acepta `items: [...]` (bulk).
 
-\### 1. POST /api/v1/inventory/availability
+Response 201:
+```json
+{
+  "reservation_id": "01JXXXX...",
+  "status": "reserved",
+  "origin_reference": "RWD-2026-ABC123",
+  "items": [],
+  "expires_at": "..."
+}
+```
 
+Response 404 (SKU no existe):
+```json
+{ "error": "product_not_found", "message": "..." }
+```
 
+Response 409 (sin stock):
+```json
+{ "error": "insufficient_stock", "reason": "Existencia insuficiente..." }
+```
+
+Mapeo de `origin_type`:
+- `REWARD` / `reward` / `recompensa` / `reward_redemption` -> `REWARD`
+- `CANJE` / `redemption` -> `CANJE`
+
+### 3. POST /reservations/{id}/confirm
+
+**NO requiere `payment_intent_id`** - Eq.7 es canje, no pago.
 
 Request:
-
 ```json
-
-{
-
-&#x20; "items": \[
-
-&#x20;   {
-
-&#x20;     "product\_reference": "SOUV-TAZA-001",
-
-&#x20;     "variant\_sku": null,
-
-&#x20;     "location\_id": null,
-
-&#x20;     "quantity": 2
-
-&#x20;   }
-
-&#x20; ]
-
-}
-
+{ "delivered_by": "STAFF-001", "delivered_at": "...", "idempotency_key": "e7-confirm-..." }
 ```
 
-
-
-Notas:
-
-\- product\_reference acepta SKU (SOUV-TAZA-001) o ObjectId de Mongo (24 hex chars)
-
-\- variant\_sku acepta SKU de variante o su ObjectId
-
-\- location\_id es opcional — si no viene, Eq.4 elige una ubicacion con stock
-
-
-
-Response (200):
-
+Response 200:
 ```json
-
 {
-
-&#x20; "available": true,
-
-&#x20; "items": \[
-
-&#x20;   {
-
-&#x20;     "product\_reference": "SOUV-TAZA-001",
-
-&#x20;     "variant\_sku": null,
-
-&#x20;     "requested": 2,
-
-&#x20;     "available": 48,
-
-&#x20;     "has\_enough": true
-
-&#x20;   }
-
-&#x20; ]
-
+  "reservation_id": "01JXXXX...",
+  "status": "consumed",
+  "stock_movement_id": "6712abc...",
+  "confirmed_at": "..."
 }
-
 ```
 
+Efecto: reduce `on_hand` y `reserved`, registra movimiento SALE.
 
-
-\### 2. POST /api/v1/inventory/reservations
-
-
+### 4. POST /reservations/{id}/release
 
 Request:
-
 ```json
-
-{
-
-&#x20; "origin\_reference": "RWD-2026-ABC123",
-
-&#x20; "origin\_type": "REWARD",
-
-&#x20; "items": \[
-
-&#x20;   {
-
-&#x20;     "product\_reference": "SOUV-TAZA-001",
-
-&#x20;     "variant\_sku": null,
-
-&#x20;     "location\_id": null,
-
-&#x20;     "quantity": 1
-
-&#x20;   }
-
-&#x20; ],
-
-&#x20; "idempotency\_key": "e7-reserve-RWD-2026-ABC123",
-
-&#x20; "expires\_at": "2026-10-02T21:00:00-06:00"
-
-}
-
+{ "reason": "CANCELLED", "idempotency_key": "e7-release-..." }
 ```
 
-
-
-Campos especificos de Eq.7:
-
-
-
-| Campo | Valores | Mapeo interno |
-
-|---|---|---|
-
-| origin\_type | REWARD / CANJE / reward\_redemption | -> source en team3\_api\_reservations |
-
-| origin\_reference | Libre | -> external\_reference |
-
-| product\_reference | SKU o ObjectId | -> product\_id |
-
-| variant\_sku | SKU o ObjectId o null | -> variant\_id |
-
-
-
-Response (201):
-
+Response 200:
 ```json
-
-{
-
-&#x20; "reservation\_id": "01JXXXX...",
-
-&#x20; "status": "reserved",
-
-&#x20; "items": \[],
-
-&#x20; "expires\_at": "2026-10-02T21:00:00-06:00"
-
-}
-
+{ "reservation_id": "01JXXXX...", "status": "released", "released_at": "..." }
 ```
 
+### 5. GET /reservations/{id}
 
+Response 200:
+```json
+{
+  "reservation_id": "01JXXXX...",
+  "status": "reserved | consumed | released | expired | rejected",
+  "origin_reference": "RWD-2026-ABC123",
+  "quantity": 1,
+  "items": [],
+  "expires_at": "..."
+}
+```
 
-Mapeo de estados internos a publicos:
-
-
+Mapeo de estados internos -> publicos:
 
 | Interno | Publico (Eq.7) |
-
 |---|---|
-
 | RESERVED | reserved |
-
 | CONFIRMED | consumed |
-
 | RELEASED (reason=EXPIRED) | expired |
-
 | RELEASED (otro reason) | released |
-
 | REJECTED | rejected |
 
+## Expiracion automatica
 
-
-\### 3. POST /api/v1/inventory/reservations/{id}/confirm
-
-
-
-DIFERENCIA CLAVE con Eq.3: NO requiere payment\_intent\_id. Eq.7 es un canje, no un pago.
-
-
-
-Request:
+Eq.4 corre un scheduler (`campus-eq4-scheduler`) que ejecuta `php artisan e7:expire` cada 5 minutos. Detecta reservas E7 vencidas (`origin_system = 'E7'` y `expires_at < now`), las libera (status = RELEASED, release_reason = EXPIRED), y publica un evento en `integration_outbox`:
 
 ```json
-
 {
-
-&#x20; "delivered\_by": "STAFF-001",
-
-&#x20; "delivered\_at": "2026-10-02T20:15:00-06:00",
-
-&#x20; "idempotency\_key": "e7-confirm-01JXXXX"
-
+  "topic": "inventory.reservation.expired",
+  "payload": {
+    "reservation_id": "01JXXXX...",
+    "origin_reference": "RWD-2026-ABC123",
+    "origin_type": "REWARD",
+    "expired_at": "2026-10-02T20:00:00-06:00"
+  },
+  "status": "PENDING"
 }
-
 ```
 
+**Pendiente**: definir con Eq.7 si quieren recibir el evento via webhook (como Eq.2) o si van a hacer polling sobre `integration_outbox`.
 
-
-Response (200):
-
-```json
-
-{
-
-&#x20; "reservation\_id": "01JXXXX...",
-
-&#x20; "status": "consumed",
-
-&#x20; "stock\_movement\_id": "6712abc...",
-
-&#x20; "confirmed\_at": "2026-10-02T20:15:01-06:00"
-
-}
-
-```
-
-
-
-Efecto en inventario: reduce on\_hand y reserved, registra movimiento SALE en stock\_movements.
-
-
-
-\### 4. POST /api/v1/inventory/reservations/{id}/release
-
-
-
-Request:
-
-```json
-
-{
-
-&#x20; "reason": "CANCELLED",
-
-&#x20; "idempotency\_key": "e7-release-01JXXXX"
-
-}
-
-```
-
-
-
-Response (200):
-
-```json
-
-{
-
-&#x20; "reservation\_id": "01JXXXX...",
-
-&#x20; "status": "released",
-
-&#x20; "released\_at": "2026-10-02T20:30:00-06:00"
-
-}
-
-```
-
-
-
-\### 5. GET /api/v1/inventory/reservations/{id}
-
-
-
-Response (200):
-
-```json
-
-{
-
-&#x20; "reservation\_id": "01JXXXX...",
-
-&#x20; "status": "reserved | consumed | released | expired | rejected",
-
-&#x20; "origin\_reference": "RWD-2026-ABC123",
-
-&#x20; "items": \[],
-
-&#x20; "expires\_at": "..."
-
-}
-
-```
-
-
-
-\## Expiracion automatica (evento para Eq.7)
-
-
-
-Eq.4 corre un worker cada 5 minutos que:
-
-
-
-1\. Detecta reservas E7 vencidas (origin\_system = 'E7' y expires\_at < now)
-
-2\. Las libera (status = RELEASED, release\_reason = EXPIRED)
-
-3\. Publica un evento en integration\_outbox:
-
-
-
-```json
-
-{
-
-&#x20; "topic": "inventory.reservation.expired",
-
-&#x20; "payload": {
-
-&#x20;   "reservation\_id": "01JXXXX...",
-
-&#x20;   "origin\_reference": "RWD-2026-ABC123",
-
-&#x20;   "origin\_type": "REWARD",
-
-&#x20;   "expired\_at": "2026-10-02T20:00:00-06:00"
-
-&#x20; },
-
-&#x20; "status": "PENDING"
-
-}
-
-```
-
-
-
-Accion sugerida para Eq.7: consumir la coleccion integration\_outbox filtrando por topic = inventory.reservation.expired y status = PENDING, procesar el evento (devolver puntos al usuario, etc.), y marcar el evento como SENT.
-
-
-
-Pendiente: definir con Eq.7 si quieren que Eq.4 les notifique via webhook (como Eq.2) o si van a hacer polling sobre integration\_outbox. Hoy solo esta implementada la persistencia en outbox.
-
-
-
-\## Errores comunes
-
-
+## Errores comunes
 
 | Codigo | Cuando |
-
 |---|---|
-
 | 401 | Firma HMAC invalida |
-
-| 404 | Reserva no encontrada o product\_reference no resuelto |
-
-| 409 | Estado invalido (ya confirmada, ya liberada, sin stock) |
-
+| 404 | Reserva no encontrada o product_reference no resuelto |
+| 409 | Estado invalido o sin stock |
 | 422 | Payload invalido |
 
+## Idempotencia
 
+Misma `idempotency_key` -> mismo `reservation_id` y mismo `stock_movement_id`. Mismo mecanismo que Eq.3 (indice unico en `integration_idempotency`).
 
-\## Idempotencia
+## Pendientes con Eq.7
 
-
-
-Misma idempotency\_key -> mismo reservation\_id y mismo stock\_movement\_id. Mismo mecanismo que Eq.3 (indice unico en integration\_idempotency).
-
-
-
+1. Confirmar que el path `/api/v1/inventory/*` es el acordado
+2. Definir webhook vs polling para el evento `inventory.reservation.expired`
+3. Confirmar si usaran solo SKUs en `product_reference` (hoy soportamos SKU y ObjectId)

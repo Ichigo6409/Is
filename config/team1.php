@@ -1,84 +1,85 @@
 <?php
 
+/**
+ * Configuracion de integracion con Equipo 1 (Identidad).
+ *
+ * Contrato real (INT-1B.5): OAuth2 client_credentials + JWT Bearer.
+ * No hay endpoints /users/*, no hay HMAC.
+ *
+ * Decision de mapeo (Opcion B):
+ *   - Un usuario puede tener VARIOS roles business en Eq.1.
+ *   - Eq.4 devuelve 'roles' como array y evalua la UNION de permisos.
+ *   - 'role' se mantiene como el primario (mayor prioridad) solo para UI.
+ *
+ * Mapeo 1:1 de Eq.1 -> Eq.4:
+ *   business_owner    -> admin
+ *   business_manager  -> admin
+ *   inventory_manager -> inventory_manager
+ *   buyer             -> buyer
+ *   cashier           -> (ignorado, fuera de dominio Eq.4)
+ *   auditor           -> no existe en Eq.1, solo modo stub
+ */
+
 return [
-    'stub_enabled' => env('TEAM1_STUB_ENABLED', true),
-    'default_user_id' => env('TEAM1_DEFAULT_USER_ID', 'USR-ADMIN-001'),
-    'api_url' => env('TEAM1_API_URL', ''),
-    'api_secret' => env('TEAM1_SERVICE_SECRET', ''),
-    'api_timeout' => (int) env('TEAM1_TIMEOUT', 5),
+    // ----------------------------------------------------------
+    // Modo de operacion
+    // ----------------------------------------------------------
+    'stub_enabled'     => env('TEAM1_STUB_ENABLED', true),
+    'default_user_id'  => env('TEAM1_DEFAULT_USER_ID', 'USR-ADMIN-001'),
+
+    // ----------------------------------------------------------
+    // OAuth2 client_credentials
+    // ----------------------------------------------------------
+    'oauth' => [
+        'token_url'     => env('TEAM1_OAUTH_TOKEN_URL', ''),
+        'api_url'       => env('TEAM1_API_URL', ''),
+        'client_id'     => env('TEAM1_CLIENT_ID', ''),
+        'client_secret' => env('TEAM1_CLIENT_SECRET', ''),
+        'scopes'        => [
+            'identity:authorization:check',
+            'identity:assignments:read',
+        ],
+        'timeout'          => (int) env('TEAM1_TIMEOUT', 5),
+        'token_cache_key'  => 'team1_oauth_token',
+        'refresh_skew'     => 60,
+    ],
+
+    // ----------------------------------------------------------
+    // Business scope
+    // ----------------------------------------------------------
+    'business_id' => env('TEAM4_BUSINESS_ID', 'BUS-CD-SOUV-001'),
+
+    // ----------------------------------------------------------
+    // Mapeo Eq.1 -> Eq.4 (1:1)
+    // ----------------------------------------------------------
+    // Si un usuario tiene varios roles Eq.1, Eq.4 devuelve la union
+    // de los roles Eq.4 correspondientes. Ejemplo:
+    //   Eq.1: [business_owner, buyer]
+    //   Eq.4: ['roles' => ['admin', 'buyer'], 'role' => 'admin']
+    'role_map_business' => [
+        'business_owner'    => 'admin',
+        'business_manager'  => 'admin',
+        'inventory_manager' => 'inventory_manager',
+        'buyer'             => 'buyer',
+    ],
+
+    // Roles Eq.4 autorizados (cualquiera de esta lista sirve)
+    'allowed_roles' => ['admin', 'inventory_manager', 'buyer', 'auditor'],
+
+    // ----------------------------------------------------------
+    // Cache de respuestas
+    // ----------------------------------------------------------
     'cache_ttl' => (int) env('TEAM1_CACHE_TTL', 60),
 
-    // NUEVO: default 300s — debe coincidir con Eq. 1
-    'allowed_clock_skew' => (int) env('TEAM1_ALLOWED_CLOCK_SKEW', 300),
-
-    // NUEVO: si Eq. 1 no expone 'scope', asumimos este
-    'role_scope_default' => env('TEAM1_ROLE_SCOPE_DEFAULT', 'global'),
-
-    // NUEVO: roles que SIEMPRE son globales (ignoran scope del Eq. 1)
-    'global_roles'       => ['admin', 'auditor'],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Roles autorizados en el Eq. 4
-    |--------------------------------------------------------------------------
-    | Roles canonicos que el Eq. 4 acepta. Cualquier rol fuera de esta lista
-    | se considera no autorizado.
-    */
-    'allowed_roles' => [
-        'admin',
-        'inventory_manager',
-        'buyer',
-        'auditor',
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Diccionario de mapeo de roles (Eq. 1 -> Eq. 4)
-    |--------------------------------------------------------------------------
-    | Cuando el Eq. 1 exponga sus roles, van a venir con su propia nomenclatura.
-    | Este diccionario mapea CUALQUIER variante al rol canonico del Eq. 4.
-    |
-    | Ejemplo: si el Eq. 1 devuelve "ADMIN_GENERAL" o "Administrador" o
-    | "superadmin", todos se mapean a 'admin'.
-    */
-    'role_map' => [
-
-        'admin' => [
-            'admin', 'administrador', 'ADMIN', 'ADMINISTRADOR',
-            'ADMIN_GENERAL', 'admin_general', 'SUPERADMIN', 'superadmin',
-            'ADMINISTRATOR', 'administrator',
-        ],
-
-        'inventory_manager' => [
-            'inventory_manager', 'inventory-manager', 'INVENTORY_MANAGER',
-            'gestor_inventario', 'GESTOR_INVENTARIO', 'responsable_inventario',
-            'RESPONSABLE_INVENTARIO', 'inventory', 'INVENTORY',
-            'almacenista', 'ALMACENISTA',
-        ],
-
-        'buyer' => [
-            'buyer', 'BUYER', 'comprador', 'COMPRADOR',
-            'purchasing', 'PURCHASING', 'purchasing_manager',
-            'PURCHASING_MANAGER', 'abastecedor', 'ABASTECEDOR',
-        ],
-
-        'auditor' => [
-            'auditor', 'AUDITOR', 'reviewer', 'REVIEWER',
-            'auditoria', 'AUDITORIA', 'auditor_lectura',
-        ],
-
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Usuarios stub (modo dev)
-    |--------------------------------------------------------------------------
-    */
+    // ----------------------------------------------------------
+    // Usuarios stub (solo modo dev)
+    // ----------------------------------------------------------
     'users' => [
         'USR-ADMIN-001' => ['name' => 'Jose Arreguin', 'email' => '23030824@itcelaya.edu.mx', 'role' => 'admin'],
-        'USR-INV-001' => ['name' => 'Ana Martinez', 'email' => 'ana.inv@campus.mx', 'role' => 'inventory_manager'],
-        'USR-BUY-001' => ['name' => 'Luis Perez', 'email' => 'luis.buy@campus.mx', 'role' => 'buyer'],
-        'USR-AUD-001' => ['name' => 'Sofia Lopez', 'email' => 'sofia.aud@campus.mx', 'role' => 'auditor'],
-        'USR-STU-001' => ['name' => 'Alumno Ejemplo', 'email' => 'alumno@campus.mx', 'role' => 'alumno'],
+        'USR-INV-001'   => ['name' => 'Ana Martinez',  'email' => 'ana.inv@campus.mx',        'role' => 'inventory_manager'],
+        'USR-BUY-001'   => ['name' => 'Luis Perez',    'email' => 'luis.buy@campus.mx',       'role' => 'buyer'],
+        'USR-AUD-001'   => ['name' => 'Sofia Lopez',   'email' => 'sofia.aud@campus.mx',      'role' => 'auditor'],
+        'USR-MULTI-001' => ['name' => 'Marta Doble',   'email' => 'marta.doble@campus.mx',    'role' => 'admin', 'extra_roles' => ['inventory_manager']],
+        'USR-MULTI2-001' => ['name' => 'Eva Doble', 'email' => 'eva.doble@campus.mx', 'role' => 'inventory_manager', 'extra_roles' => ['buyer']],
     ],
 ];

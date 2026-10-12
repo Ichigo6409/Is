@@ -22,7 +22,7 @@ class PaymentWebhookController extends Controller
         $v = $request->validate([
             'payment_intent_id' => 'required|string|max:100',
             'order_id'          => 'required|string|max:100',
-            'business_id'       => 'nullable|string|max:100',
+            'business_id'       => 'required|string|max:100',
             'status'            => 'required|in:PENDING,PAID,FAILED,REFUNDED,PARTIALLY_REFUNDED',
             'amount'            => 'nullable|numeric|min:0',
             'currency'          => 'nullable|string|size:3',
@@ -34,6 +34,19 @@ class PaymentWebhookController extends Controller
             'items.*.quantity'    => 'required_with:items|integer|min:1',
             'occurred_at'       => 'nullable|date',
         ]);
+
+        // Validar business_id contra el configurado. Si no coincide, se rechaza.
+        if ($v['business_id'] !== $this->businessId) {
+            Log::warning('Webhook E2 con business_id no autorizado', [
+                'received' => $v['business_id'],
+                'expected' => $this->businessId,
+                'pi'       => $v['payment_intent_id'] ?? null,
+            ]);
+            return response()->json([
+                'message'  => 'business_id no corresponde al negocio configurado.',
+                'expected' => $this->businessId,
+            ], 403);
+        }
 
         $coll = DB::connection('mongodb')->getCollection('payment_events');
 

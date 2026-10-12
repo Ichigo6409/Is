@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Api\Team3ApiService;
+use App\Exceptions\ProductReferenceNotFound;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use MongoDB\BSON\ObjectId;
 
 /**
  * Adaptador Equipo 7 -> motor comun de reservas (Team3ApiService).
@@ -26,7 +28,6 @@ class Team7AdapterService
         $mapped = [];
         foreach ($items as $it) {
             $pid = $this->resolveProductId($it['product_reference'] ?? $it['product_id'] ?? null);
-            if ($pid === null) throw new \InvalidArgumentException('product_reference no resuelto: ' . ($it['product_reference'] ?? '?'));
             $mapped[] = [
                 'product_id'  => $pid,
                 'variant_id'  => $this->resolveVariantId($it['variant_sku'] ?? null),
@@ -34,16 +35,24 @@ class Team7AdapterService
                 'quantity'    => (int) ($it['quantity'] ?? 1),
             ];
         }
+
         $res = $this->inner->availability($mapped);
-        return [
-            'available' => $res['available'],
-            'items' => array_map(fn($it) => [
+
+        $outItems = [];
+        foreach ($res['items'] as $idx => $it) {
+            $outItems[] = [
                 'product_reference' => $it['product_id'],
                 'variant_sku'       => $it['variant_id'],
                 'requested'         => $it['requested'],
                 'available'         => $it['available'],
                 'has_enough'        => $it['has_enough'],
-            ], $res['items']),
+                'warehouse_id'      => $this->resolveWarehouseIdForItem($mapped[$idx]),
+            ];
+        }
+
+        return [
+            'available' => $res['available'],
+            'items'     => $outItems,
         ];
     }
 
@@ -52,7 +61,6 @@ class Team7AdapterService
         $items = [];
         foreach ($data['items'] as $it) {
             $pid = $this->resolveProductId($it['product_reference'] ?? $it['product_id'] ?? null);
-            if ($pid === null) throw new \InvalidArgumentException('product_reference no resuelto: ' . ($it['product_reference'] ?? '?'));
             $items[] = [
                 'product_id'  => $pid,
                 'variant_id'  => $this->resolveVariantId($it['variant_sku'] ?? null),
@@ -60,6 +68,7 @@ class Team7AdapterService
                 'quantity'    => (int) ($it['quantity'] ?? 1),
             ];
         }
+
         $inner = $this->inner->reserve([
             'order_id'           => $data['origin_reference'] ?? ('E7-' . Str::ulid()),
             'items'              => $items,
@@ -69,6 +78,7 @@ class Team7AdapterService
             'expires_at'         => $data['expires_at'] ?? null,
             'actor_id'           => $data['actor_id'] ?? 'TEAM7',
         ]);
+
         DB::connection('mongodb')->getCollection($this->collection)->updateOne(
             ['reservation_id' => $inner['reservation_id']],
             ['$set' => [
@@ -77,6 +87,7 @@ class Team7AdapterService
                 'origin_reference' => $data['origin_reference'] ?? '',
             ]]
         );
+
         return [
             'reservation_id'   => $inner['reservation_id'],
             'status'           => 'reserved',
@@ -92,6 +103,7 @@ class Team7AdapterService
             'idempotency_key' => $data['idempotency_key'],
             'actor_id'        => $data['delivered_by'] ?? 'TEAM7',
         ]);
+
         $movementId = null;
         $firstProductId = $inner['movements'][0]['product_id'] ?? null;
         if ($firstProductId) {
@@ -101,6 +113,7 @@ class Team7AdapterService
             );
             if ($mov) $movementId = (string) $mov['_id'];
         }
+
         return [
             'reservation_id'    => $reservationId,
             'status'            => 'consumed',
@@ -115,6 +128,7 @@ class Team7AdapterService
             'idempotency_key' => $data['idempotency_key'],
             'reason'          => $data['reason'] ?? 'E7_RELEASE',
         ]);
+
         return [
             'reservation_id' => $reservationId,
             'status'         => 'released',
@@ -127,12 +141,22 @@ class Team7AdapterService
         $doc = DB::connection('mongodb')->getCollection($this->collection)
             ->findOne(['reservation_id' => $reservationId, 'business_id' => $this->businessId]);
         if (!$doc) return null;
+
         $d = (array) $doc;
+        $items = $d['items'] ?? [];
+
+        // Spec E7 pide 'quantity' a nivel raiz (suma de quantities)
+        $totalQty = 0;
+        foreach ($items as $it) {
+            $totalQty += (int) ($it['quantity'] ?? 0);
+        }
+
         return [
             'reservation_id'   => $d['reservation_id'],
             'status'           => $this->mapStatusForE7($d['status'] ?? 'RESERVED', $d['release_reason'] ?? null),
             'origin_reference' => $d['origin_reference'] ?? ($d['external_reference'] ?? ''),
-            'items'            => $d['items'] ?? [],
+            'quantity'         => $totalQty,
+            'items'            => $items,
             'expires_at'       => $d['expires_at'] ?? null,
         ];
     }
@@ -157,19 +181,69 @@ class Team7AdapterService
         };
     }
 
+    /**
+     * Resuelve product_reference (SKU o ObjectId) a product_id.
+     * Lanza ProductReferenceNotFound si el SKU no existe -> controller 404.
+     */
     private function resolveProductId(?string $ref): ?string
     {
-        if (!$ref) return null;
-        if (preg_match('/^[a-f0-9]{24}$/i', $ref)) return strtolower($ref);
-        $p = DB::connection('mongodb')->getCollection('products')->findOne(['sku' => $ref, 'business_id' => $this->businessId]);
-        return $p ? (string) $p['_id'] : null;
+        if (!$ref) {
+            throw new ProductReferenceNotFound('product_reference vacio o ausente.');
+        }
+        if (preg_match('/^[a-f0-9]{24}$/i', $ref)) {
+            return strtolower($ref);
+        }
+        $p = DB::connection('mongodb')->getCollection('products')
+            ->findOne(['sku' => $ref, 'business_id' => $this->businessId]);
+        if (!$p) {
+            throw new ProductReferenceNotFound("product_reference no encontrado: {$ref}");
+        }
+        return (string) $p['_id'];
     }
 
     private function resolveVariantId(?string $sku): ?string
     {
         if (!$sku) return null;
         if (preg_match('/^[a-f0-9]{24}$/i', $sku)) return strtolower($sku);
-        $v = DB::connection('mongodb')->getCollection('product_variants')->findOne(['sku' => $sku, 'business_id' => $this->businessId]);
-        return $v ? (string) $v['_id'] : null;
+
+        $v = DB::connection('mongodb')->getCollection('product_variants')
+            ->findOne(['sku' => $sku, 'business_id' => $this->businessId]);
+        if (!$v) {
+            throw new ProductReferenceNotFound("variant_sku no encontrado: {$sku}");
+        }
+        return (string) $v['_id'];
+    }
+
+    /**
+     * Devuelve el warehouse_id asociado a la ubicacion principal del item.
+     * Si no se puede determinar, devuelve null.
+     */
+    private function resolveWarehouseIdForItem(array $mapped): ?string
+    {
+        try {
+            $inv = DB::connection('mongodb')->getCollection('inventories')->findOne(
+                [
+                    'business_id' => $this->businessId,
+                    'product_id'  => $mapped['product_id'],
+                    'variant_id'  => $mapped['variant_id'] ?? null,
+                ],
+                ['sort' => ['available' => -1]]
+            );
+            if (!$inv) return null;
+
+            $invArr     = (array) $inv;
+            $locationId = $invArr['location_id'] ?? null;
+            if (!$locationId) return null;
+
+            $loc = DB::connection('mongodb')->getCollection('locations')->findOne([
+                '_id' => new ObjectId((string) $locationId),
+            ]);
+            if (!$loc) return null;
+
+            $locArr = (array) $loc;
+            return isset($locArr['warehouse_id']) ? (string) $locArr['warehouse_id'] : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 }

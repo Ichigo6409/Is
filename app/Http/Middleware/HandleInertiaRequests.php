@@ -13,12 +13,15 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $identity = app(IdentityService::class);
-        $userId = $identity->resolveCurrentUserId();
-        $sharedUser = $identity->getSharedUser($userId);
+        $userId   = $identity->resolveCurrentUserId();
+        $shared   = $identity->getSharedUser($userId);
 
-        $role = $sharedUser['role'] ?? null;
-        $permissions = $identity->getPermissions($role);
-        $dashboardKpis = $identity->getDashboardKpis($role);
+        // Si el usuario no existe (o no tiene roles validos), no comparte
+        // permisos. La UI vera la pantalla de "no autorizado".
+        $roles       = $shared['roles'] ?? [];
+        $role        = $shared['role']  ?? null;
+        $permissions = $identity->getPermissions($roles);
+        $kpis        = $identity->getDashboardKpis($roles);
 
         $urgentAlertsCount = 0;
         try {
@@ -26,25 +29,28 @@ class HandleInertiaRequests extends Middleware
                 ->getCollection('stock_alerts')
                 ->countDocuments([
                     'business_id' => config('team4.business_id'),
-                    'status' => 'ACTIVE',
-                    'priority' => ['$in' => ['HIGH', 'CRITICAL']],
+                    'status'      => 'ACTIVE',
+                    'priority'    => ['$in' => ['HIGH', 'CRITICAL']],
                 ]);
-        } catch (\Throwable $e) { $urgentAlertsCount = 0; }
+        } catch (\Throwable $e) {
+            $urgentAlertsCount = 0;
+        }
 
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $sharedUser,
-                'role' => $role,
-                'is_authorized' => $identity->isAuthorized($role),
-                'permissions' => $permissions,
-                'dashboard_kpis' => $dashboardKpis,
+                'user'            => $shared,
+                'role'            => $role,        // primario (string, para UI compacta)
+                'roles'           => $roles,       // array completo
+                'is_authorized'   => $identity->isAuthorized($roles),
+                'permissions'     => $permissions,
+                'dashboard_kpis'  => $kpis,
             ],
             'alertsCount' => $urgentAlertsCount,
-            'csrfToken' => csrf_token(),
+            'csrfToken'   => csrf_token(),
             'flash' => [
                 'success' => $request->session()->get('success'),
-                'error' => $request->session()->get('error'),
+                'error'   => $request->session()->get('error'),
             ],
         ];
     }

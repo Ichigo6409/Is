@@ -51,23 +51,26 @@ const visiblePages = computed(() => {
 
 <template>
   <section class="space-y-6">
-    <!-- Hero azul oscuro -->
-    <div v-if="title" class="rounded-2xl bg-[#00338D] px-7 py-6 text-white shadow-xl shadow-[#00338D]/10">
-      <h1 class="text-3xl font-bold tracking-tight">{{ title }}</h1>
-      <p v-if="subtitle" class="mt-2 text-sm text-blue-100">{{ subtitle }}</p>
-    </div>
-
-    <!-- Barra de búsqueda + acciones -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div></div>
-      <div class="flex items-center gap-2 ml-auto">
+    <!-- Tarjeta de encabezado + búsqueda y acciones -->
+    <div class="rounded-2xl bg-white border border-slate-200/70 px-6 py-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div v-if="title" class="flex items-center gap-4 min-w-0">
+        <span class="grid place-items-center w-12 h-12 rounded-full bg-[#1B3A8F] text-white text-base font-bold shrink-0">
+          {{ title.charAt(0) }}
+        </span>
+        <div class="min-w-0">
+          <h1 class="text-2xl font-semibold text-slate-800 tracking-tight">{{ title }}</h1>
+          <p v-if="subtitle" class="mt-0.5 text-sm text-slate-500">{{ subtitle }}</p>
+        </div>
+      </div>
+      <div v-else></div>
+      <div class="flex flex-wrap items-center gap-2 lg:ml-auto">
         <input
           v-model="search"
           placeholder="Buscar..."
-          class="px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white focus:border-[#0284C7] focus:ring-[#0284C7]"
+          class="px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white focus:border-[#2F6BE8] focus:ring-[#2F6BE8]"
         />
         <slot name="toolbar">
-          <button class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-[#00338D] text-white hover:bg-[#0284C7] transition">Nuevo</button>
+          <button class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-[#1B3A8F] text-white hover:bg-[#2F6BE8] transition">Nuevo</button>
         </slot>
       </div>
     </div>
@@ -77,15 +80,15 @@ const visiblePages = computed(() => {
       <div
         v-for="(k, i) in kpis"
         :key="i"
-        class="rounded-2xl bg-white p-5 shadow-sm"
+        class="rounded-2xl bg-white border border-slate-200/70 p-5"
       >
-        <span class="text-sm text-slate-500">{{ k.label }}</span>
+        <span class="text-xs text-slate-400">{{ k.label }}</span>
         <strong
-          class="mt-2 block text-2xl"
+          class="mt-2 block text-3xl font-semibold"
           :class="k.color === 'danger' ? 'text-rose-600'
             : k.color === 'warning' ? 'text-amber-600'
             : k.color === 'success' ? 'text-emerald-600'
-            : 'text-[#00338D]'"
+            : 'text-slate-800'"
         >
           {{ k.value }}
         </strong>
@@ -93,13 +96,16 @@ const visiblePages = computed(() => {
     </div>
 
     <!-- Tabla -->
-    <div class="rounded-2xl bg-white shadow-sm overflow-hidden">
-      <div class="px-6 py-4 border-b border-slate-200">
-        <h2 class="font-bold text-[#00338D] text-sm uppercase tracking-wide">Información</h2>
+    <div class="rounded-2xl bg-white border border-slate-200/70 overflow-hidden">
+      <div class="px-6 py-4 flex items-center justify-between">
+        <h2 class="text-lg text-slate-800">Información</h2>
+        <span class="inline-flex items-center px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-bold uppercase">
+          {{ pagination.total }} {{ pagination.total === 1 ? 'registro' : 'registros' }}
+        </span>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-sm text-left">
-          <thead class="text-xs uppercase text-slate-500 border-b border-slate-200">
+          <thead class="text-xs uppercase text-slate-500 bg-slate-50 border-y border-slate-200">
             <tr>
               <th v-for="c in columns" :key="c" class="px-4 py-3 font-semibold">{{ c }}</th>
               <th v-if="$slots.actions" class="px-4 py-3 font-semibold text-right">Acciones</th>
@@ -134,7 +140,7 @@ const visiblePages = computed(() => {
 
           <button v-for="p in visiblePages" :key="p" @click="goToPage(p)"
             :class="p === pagination.current_page
-              ? 'px-3 py-1 text-xs font-semibold rounded bg-[#00338D] text-white'
+              ? 'px-3 py-1 text-xs font-semibold rounded bg-[#1B3A8F] text-white'
               : 'px-3 py-1 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition'">
             {{ p }}
           </button>

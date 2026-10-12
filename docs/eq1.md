@@ -1,244 +1,188 @@
-```markdown
+﻿# Integracion con Equipo 1 - Identidad
 
-\# Integración con Equipo 1 — Identidad
+**Rol de Eq.4**: Cliente (consumimos la API de Eq.1)
+**Cliente HTTP**: `App\Services\Team1OAuthClient`
+**Consumidor**: `App\Services\IdentityService`
+**Contrato**: INT-1B.5 (OAuth2 client_credentials + JWT Bearer)
 
+## Contexto
 
+Eq.1 es la fuente de verdad de identidad y roles business. Eq.4
+consume dos operaciones para autorizar su panel de administracion:
 
-\*\*Rol de Eq.4\*\*: Cliente (consumimos la API de Eq.1)
+1. `POST /identity/authorization/check` - verifica una capability
+2. `GET /identity/assignments` - devuelve los roles efectivos
 
-\*\*Cliente\*\*: `App\\Services\\Team1Client`
+Eq.1 **no expone** el catalogo de usuarios, no devuelve emails ni
+nombres, y no permite asignar/revocar roles por API. Toda la
+administracion de roles ocurre dentro de Eq.1 o Eq.3.
 
-\*\*Consumidor\*\*: `App\\Services\\IdentityService`
+## Autenticacion (OAuth2)
 
-
-
-\## Contexto
-
-
-
-Eq.4 no gestiona usuarios. Los obtiene de Eq.1 (fuente de verdad). Consultamos vía HTTP con HMAC para:
-
-
-
-1\. Validar que un `user\_id` existe
-
-2\. Obtener el rol normalizado (`admin`, `inventory\_manager`, `buyer`, `auditor`)
-
-3\. Verificar el scope (`global` o `business`)
-
-4\. Verificar el status (`active` / `suspended` / `inactive`)
-
-
-
-\## Modo stub vs real
-
-
+**Flujo**:
 
 ```
-
-\# Stub (default, mientras Eq.1 no publique)
-
-TEAM1\_STUB\_ENABLED=true
-
-
-
-\# Real (cuando Eq.1 publique)
-
-TEAM1\_STUB\_ENABLED=false
-
-TEAM1\_API\_URL=https://eq1.example.com/api
-
-TEAM1\_SERVICE\_SECRET=<secret real>
-
-TEAM1\_TIMEOUT=5
-
-TEAM1\_CACHE\_TTL=60
-
-TEAM1\_ALLOWED\_CLOCK\_SKEW=300
-
+1. Eq.4 POST /oauth/token con client_credentials
+2. Eq.1 responde {access_token: JWT, expires_in: 3600}
+3. Eq.4 usa Authorization: Bearer <token> en el resto
 ```
 
-
-
-Al publicar Eq.1, solo cambian esas variables y todo el sistema lo consume automáticamente.
-
-
-
-\## Endpoint esperado de Eq.1
-
-
-
-\### GET /users/{userId}
-
-
-
-Request con firma HMAC:
+**Formato del request**:
 
 ```
+POST /oauth/token
+Content-Type: application/x-www-form-urlencoded
 
-GET /users/USR-ADMIN-001
-
-X-Team-Timestamp: 1790000123
-
-X-Team-Signature: <hmac-sha256-hex>
-
+grant_type=client_credentials
+&client_id=eq4
+&client_secret=<secret>
+&scope=identity:authorization:check identity:assignments:read
 ```
 
+**Cache**: el token se guarda hasta `expires_in - 60s`. Al recibir 401
+en cualquier request, se invalida y se reintenta UNA vez.
 
+## Endpoints consumidos
 
-Response esperada (200):
+### 1. POST /identity/authorization/check
 
+Request:
 ```json
-
 {
-
-&#x20; "id": "USR-ADMIN-001",
-
-&#x20; "name": "Jose Arreguin",
-
-&#x20; "email": "jose@ejemplo.com",
-
-&#x20; "active": true,
-
-&#x20; "status": "active",
-
-&#x20; "role": {
-
-&#x20;   "name": "admin",
-
-&#x20;   "scope": "global",
-
-&#x20;   "business\_id": null,
-
-&#x20;   "status": "active"
-
-&#x20; }
-
+  "subject_id": "USR-2024-ABC",
+  "capability": "business.inventory.operate",
+  "scope_type": "business",
+  "scope_id": "BUS-CD-SOUV-001"
 }
-
 ```
 
+Response 200:
+```json
+{ "authorized": true }
+```
 
+Response 200 (negado):
+```json
+{ "authorized": false }
+```
 
-Reglas aplicadas por Eq.4:
+### 2. GET /identity/assignments
 
+Query params:
+- `subject_id` (required)
+- `scope_type=business` (required)
+- `scope_id` (required)
 
+Response 200:
+```json
+{
+  "subject_id": "USR-2024-ABC",
+  "scope_type": "business",
+  "scope_id": "BUS-CD-SOUV-001",
+  "membership_status": "active",
+  "roles": [
+    {
+      "role_key": "business_owner",
+      "status": "active",
+      "starts_at": "2026-01-01T00:00:00+00:00",
+      "ends_at": null,
+      "assigned_at": "2026-01-01T00:00:00+00:00"
+    }
+  ]
+}
+```
 
-| Campo | Regla |
+**Reglas aplicadas por Eq.4**:
 
+- Solo `membership_status = active` autoriza.
+- Solo los roles con `status = active` se consideran.
+- Si el subject no existe o no tiene roles, se rechaza.
+
+## Mapeo de roles Eq.1 -> Eq.4
+
+Eq.1 expone 5 roles business canonicos. Eq.4 maneja 4 roles:
+
+| Rol Eq.1 | Rol Eq.4 | Notas |
+|---|---|---|
+| `business_owner` | `admin` | Unico por negocio |
+| `business_manager` | `admin` | Delegacion operativa |
+| `inventory_manager` | `inventory_manager` | Coincide exacto |
+| `buyer` | `buyer` | Coincide exacto |
+| `cashier` | (ignorado) | Fuera de dominio Eq.4 |
+
+**Multi-rol (Opcion B)**: si un subject tiene varios roles en Eq.1,
+Eq.4 devuelve la union de los roles canonico. Ejemplo:
+
+```
+Eq.1 emite: [business_owner, buyer]
+Eq.4 resuelve: roles = [admin, buyer], role = admin (primario)
+```
+
+Los permisos se evaluan como la **union** de los permisos de todos
+los roles. El campo `role` (primario) solo se usa para mostrar en la UI.
+
+## Scopes requeridos a Eq.1
+
+| Scope | Uso |
 |---|---|
+| `identity:authorization:check` | Validar capabilities puntuales |
+| `identity:assignments:read` | Leer roles efectivos por subject |
 
-| active | Si false, rechazo |
+## Variables de entorno (Eq.4)
 
-| status | Solo active autoriza |
+**Modo stub (dev)**:
 
-| role.name | Se normaliza vía config/team1.php |
+```env
+TEAM1_STUB_ENABLED=true
+TEAM1_DEFAULT_USER_ID=USR-ADMIN-001
+```
 
-| role.scope | Default global si no viene |
+**Modo real (prod)**:
 
-| role.business\_id | Requerido si scope=business |
+```env
+TEAM1_STUB_ENABLED=false
+TEAM1_OAUTH_TOKEN_URL=http://campus-eq1:8000/oauth/token
+TEAM1_API_URL=http://campus-eq1:8000/api/v1
+TEAM1_CLIENT_ID=eq4
+TEAM1_CLIENT_SECRET=<secret que nos da Eq.1>
+TEAM1_TIMEOUT=5
+TEAM1_CACHE_TTL=60
+```
 
+Cuando Eq.1 confirme, se cambian las variables y se corre:
 
+```
+docker exec campus-eq4-app php artisan config:clear
+docker exec campus-eq4-app php artisan cache:clear
+```
 
-Errores manejados:
-
-
-
-| Código | Acción de Eq.4 |
-
-|---|---|
-
-| 401 | Log error, rechazo (secret incorrecto) |
-
-| 403 | Log info, rechazo (prohibido) |
-
-| 404 | Log info, rechazo (no existe) |
-
-| 5xx | Retry 100ms → 500ms → 1500ms |
-
-
-
-\## Firma HMAC
-
-
-
-Igual que los demás equipos, con secreto `TEAM1\_SERVICE\_SECRET`.
-
-
-
-Para GET sin body: sha256('') = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-
-
-
-\## Retry y resiliencia
-
-
+## Resiliencia
 
 | Escenario | Comportamiento |
-
 |---|---|
+| 401 en cualquier request | Invalida el token, reintenta UNA vez |
+| 5xx | No reintenta (Eq.4 responde 503 al usuario) |
+| Timeout / error de red | No reintenta |
+| Subject sin roles activos | Rechaza el acceso, log info |
+| Membership no-active | Rechaza el acceso, log info |
 
-| 2xx | Devuelve respuesta |
+## Rol `auditor` en Eq.4
 
-| 4xx | Devuelve inmediato (no reintenta) |
+Eq.1 **no expone** un rol `auditor` en su catalogo business.
+El rol `auditor` de Eq.4 solo funciona en modo stub (dev).
+En produccion nadie va a tener este rol hasta que Eq.1 lo publique.
 
-| 5xx | Retry: 100ms → 500ms → 1500ms |
+## Colecciones MongoDB de Eq.4
 
-| Timeout o error de red | 3 intentos totales |
+| Coleccion | Uso |
+|---|---|
+| `users` (Eq.4 no la usa) | Identidad vive en Eq.1 |
+| `stock_alerts` | Para el badge de alertas urgentes |
 
+## Pendientes con Eq.1
 
-
-Si los 3 intentos fallan, devuelve null → IdentityService interpreta "no autorizado".
-
-
-
-\## Caché
-
-
-
-Respuestas exitosas se cachean `TEAM1\_CACHE\_TTL` seg (default 60s). Errores NO se cachean.
-
-
-
-\## Mapeo de roles
-
-
-
-```php
-
-'role\_map' => \[
-
-&#x20;   'admin'             => \['admin', 'administrador', 'owner', 'propietario'],
-
-&#x20;   'inventory\_manager' => \['inventory\_manager', 'manager', 'Responsable de inventario'],
-
-&#x20;   'buyer'             => \['buyer', 'comprador', 'purchaser'],
-
-&#x20;   'auditor'           => \['auditor', 'audit', 'solo\_lectura'],
-
-],
-
-'global\_roles'  => \['admin', 'auditor'],
-
-'allowed\_roles' => \['admin', 'inventory\_manager', 'buyer', 'auditor'],
-
-```
-
-
-
-Eq.1 puede mandar el nombre tal cual y Eq.4 lo mapea al canónico.
-
-
-
-\## Pendientes con Eq.1
-
-
-
-1\. Que publiquen su API con los endpoints y firma descritos
-
-2\. Confirmar el mapeo de sus roles a nuestros 4 canónicos
-
-3\. Definir quién asigna `inventory\_manager` por negocio (¿el Propietario/Gerente de Eq.3?)
-
-```
-
+1. Que nos entreguen `client_id` + `client_secret` + confirmacion de
+   los scopes `identity:authorization:check` y `identity:assignments:read`.
+2. Definir como se propaga el `subject_id` a Eq.4 en produccion
+   (hoy Eq.4 lo toma del stub o del usuario logueado).
+3. Definir si Eq.1 va a exponer `auditor` en algun momento.

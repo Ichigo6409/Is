@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use MongoDB\BSON\ObjectId;
 
 class DemoSeed extends Command
@@ -22,18 +23,21 @@ class DemoSeed extends Command
         // 1. Categorias
         // ------------------------------------------------------------
         $this->info('Categorias...');
-        $cats = ['Souvenirs', 'Papeleria', 'Electronica', 'Accesorios'];
+        $cats = ['Souvenirs', 'Papeleria', 'Electronica', 'Accesorios', 'Ropa'];
         $catIds = [];
         foreach ($cats as $name) {
             $db->getCollection('categories')->updateOne(
                 ['name' => $name, 'business_id' => $this->bid],
-                ['$setOnInsert' => [
-                    '_id' => new ObjectId(),
-                    'name' => $name,
-                    'business_id' => $this->bid,
-                    'active' => true,
-                    'created_at' => now()->toDateTime(),
-                ]],
+                [
+                    '$set' => ['slug' => Str::slug($name)],
+                    '$setOnInsert' => [
+                        '_id' => new ObjectId(),
+                        'name' => $name,
+                        'business_id' => $this->bid,
+                        'active' => true,
+                        'created_at' => now()->toDateTime(),
+                    ],
+                ],
                 ['upsert' => true]
             );
             $c = $db->getCollection('categories')->findOne(['name' => $name, 'business_id' => $this->bid]);
@@ -125,7 +129,7 @@ class DemoSeed extends Command
                     'sku' => $p['sku'],
                     'name' => $p['name'],
                     'description' => 'Producto de demostracion',
-                    'category' => $p['cat'],
+                    'category' => Str::slug($p['cat']),
                     'category_id' => $catIds[$p['cat']] ?? null,
                     'cost' => $p['cost'],
                     'price' => $p['price'],

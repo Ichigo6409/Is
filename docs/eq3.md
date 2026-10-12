@@ -1,488 +1,181 @@
-```markdown
+﻿# Integracion con Equipo 3 - Marketplace
 
-\# Integración con Equipo 3 — Marketplace
+**Rol de Eq.4**: Servidor (exponemos API a Eq.3)
+**Controller**: `App\Api\Team3IntegrationController`
+**Base path**: `/api/equipo4/integration`
 
+## Contexto
 
+Eq.3 vende productos de Eq.4. Antes de cerrar una venta, Eq.3 consulta disponibilidad, reserva stock, confirma el descuento cuando el pago pasa, y libera si se cancela.
 
-\*\*Rol de Eq.4\*\*: Servidor (exponemos API a Eq.3)
+Ademas, Eq.3 nos notifica devoluciones, transferencias y ajustes de inventario.
 
-\*\*Controller\*\*: `App\\Api\\Team3IntegrationController`
+## Endpoints expuestos (8)
 
-\*\*Base path\*\*: `/api/equipo4/integration`
+Todos requieren firma HMAC-SHA256 con `TEAM_SERVICE_SHARED_SECRET`.
 
-
-
-\## Contexto
-
-
-
-Eq.3 vende productos de Eq.4. Antes de cerrar una venta, Eq.3 nos consulta disponibilidad, reserva stock, confirma el descuento cuando el pago pasa, y libera si se cancela.
-
-
-
-Además, Eq.3 nos notifica devoluciones, transferencias entre almacenes y ajustes de inventario.
-
-
-
-\## Endpoints expuestos (8)
-
-
-
-Todos requieren firma HMAC-SHA256 con `TEAM\_SERVICE\_SHARED\_SECRET` (ver README).
-
-
-
-\### 1. POST /api/equipo4/integration/availability
-
-
+### 1. POST /availability
 
 Request:
-
 ```json
-
-{
-
-&#x20; "items": \[
-
-&#x20;   {
-
-&#x20;     "product\_id": "6abffeaf31a8cb527504f753",
-
-&#x20;     "variant\_id": null,
-
-&#x20;     "location\_id": "6abffeaf31a8cb527504f754",
-
-&#x20;     "quantity": 2
-
-&#x20;   }
-
-&#x20; ]
-
-}
-
+{ "items": [ { "product_id": "...", "variant_id": null, "location_id": "...", "quantity": 2 } ] }
 ```
 
-
-
-Response (200):
-
+Response 200:
 ```json
-
 {
-
-&#x20; "available": true,
-
-&#x20; "items": \[
-
-&#x20;   {
-
-&#x20;     "product\_id": "6abffeaf31a8cb527504f753",
-
-&#x20;     "variant\_id": null,
-
-&#x20;     "location\_id": "6abffeaf31a8cb527504f754",
-
-&#x20;     "requested": 2,
-
-&#x20;     "available": 125,
-
-&#x20;     "has\_enough": true
-
-&#x20;   }
-
-&#x20; ]
-
+  "available": true,
+  "items": [{
+    "product_id": "...", "variant_id": null, "location_id": "...",
+    "requested": 2, "available": 125, "has_enough": true
+  }]
 }
-
 ```
 
-
-
-Logica: has\_enough = true solo si hay stock en ESA ubicacion especifica.
-
-
-
-\### 2. POST /api/equipo4/integration/reservations
-
-
+### 2. POST /reservations
 
 Request:
-
 ```json
-
 {
-
-&#x20; "order\_id": "ORD-2026-ABC",
-
-&#x20; "items": \[
-
-&#x20;   {
-
-&#x20;     "product\_id": "6abffeaf31a8cb527504f753",
-
-&#x20;     "variant\_id": null,
-
-&#x20;     "location\_id": "6abffeaf31a8cb527504f754",
-
-&#x20;     "quantity": 2
-
-&#x20;   }
-
-&#x20; ],
-
-&#x20; "idempotency\_key": "reserve-ORD-2026-ABC-v1",
-
-&#x20; "source": "CHECKOUT",
-
-&#x20; "expires\_at": "2026-10-02T21:00:00-06:00"
-
+  "order_id": "ORD-2026-ABC",
+  "items": [{ "product_id": "...", "variant_id": null, "location_id": "...", "quantity": 2 }],
+  "idempotency_key": "reserve-ORD-2026-ABC-v1",
+  "source": "CHECKOUT",
+  "expires_at": "2026-10-02T21:00:00-06:00"
 }
-
 ```
 
-
-
-Response (201):
-
+Response 201:
 ```json
-
-{
-
-&#x20; "reservation\_id": "01JXXXX...",
-
-&#x20; "status": "RESERVED",
-
-&#x20; "items": \[],
-
-&#x20; "expires\_at": "2026-10-02T21:00:00-06:00"
-
-}
-
+{ "reservation_id": "01JXXXX...", "status": "RESERVED", "items": [], "expires_at": "..." }
 ```
 
-
-
-Response (409) sin stock:
-
+Response 409 (sin stock):
 ```json
-
-{
-
-&#x20; "status": "REJECTED",
-
-&#x20; "reason": "Existencia insuficiente para product\_id=..."
-
-}
-
+{ "status": "REJECTED", "reason": "Existencia insuficiente para product_id=..." }
 ```
 
+Idempotencia: misma `idempotency_key` -> mismo `reservation_id`.
 
+Estado inicial: Eq.4 crea la reserva directamente en RESERVED (sin PENDING).
 
-Idempotencia: misma idempotency\_key -> mismo reservation\_id (no duplica stock).
-
-
-
-Estado inicial: Eq.4 crea la reserva directamente en RESERVED, NO usamos PENDING. Nuestra reserva es atomica (se descuenta available y se incrementa reserved en la misma operacion).
-
-
-
-\### 3. POST /api/equipo4/integration/reservations/{id}/confirm
-
-
+### 3. POST /reservations/{id}/confirm
 
 Request:
-
 ```json
-
-{
-
-&#x20; "order\_id": "ORD-2026-ABC",
-
-&#x20; "payment\_intent\_id": "PI-2026-ABCD1234",
-
-&#x20; "idempotency\_key": "confirm-ORD-2026-ABC-v1"
-
-}
-
+{ "order_id": "ORD-2026-ABC", "payment_intent_id": "PI-2026-ABCD1234", "idempotency_key": "confirm-..." }
 ```
 
-
-
-Response (200):
-
+Response 200 (pago OK):
 ```json
-
 {
-
-&#x20; "reservation\_id": "01JXXXX...",
-
-&#x20; "status": "CONFIRMED",
-
-&#x20; "movements": \[
-
-&#x20;   {
-
-&#x20;     "product\_id": "6abffeaf31a8cb527504f753",
-
-&#x20;     "quantity": -2,
-
-&#x20;     "type": "SALE"
-
-&#x20;   }
-
-&#x20; ]
-
+  "reservation_id": "01JXXXX...",
+  "status": "CONFIRMED",
+  "movements": [{ "product_id": "...", "quantity": -2, "type": "SALE" }]
 }
-
 ```
 
-
-
-Verificacion critica: Eq.4 valida que existe un evento PAID con ese payment\_intent\_id en payment\_events (lleno via webhook de Eq.2). Si no existe:
-
-
-
-Response (409):
-
+Response 404 (reserva no existe):
 ```json
-
-{
-
-&#x20; "status": "REJECTED",
-
-&#x20; "reason": "No hay registro de pago con payment\_intent\_id=PI-2026-ABCD1234"
-
-}
-
+{ "error": "reservation_not_found", "message": "La reserva no existe." }
 ```
 
+Response 409 (existe pero sin pago registrado o en estado distinto a PAID):
+```json
+{ "status": "REJECTED", "reason": "No hay registro de pago para este payment_intent_id" }
+```
 
+Verificacion: Eq.4 valida que exista un evento PAID con ese `payment_intent_id` en `payment_events` (poblado via webhook de Eq.2).
 
-Efecto en inventario: reduce on\_hand y reserved, registra movimiento en stock\_movements.
-
-
-
-\### 4. POST /api/equipo4/integration/reservations/{id}/release
-
-
+### 4. POST /reservations/{id}/release
 
 Request:
-
 ```json
-
-{
-
-&#x20; "order\_id": "ORD-2026-ABC",
-
-&#x20; "reason": "CUSTOMER\_CANCELLED",
-
-&#x20; "idempotency\_key": "release-ORD-2026-ABC-v1"
-
-}
-
+{ "order_id": "ORD-2026-ABC", "reason": "CUSTOMER_CANCELLED", "idempotency_key": "release-..." }
 ```
 
-
-
-Response (200):
-
+Response 200:
 ```json
-
-{
-
-&#x20; "reservation\_id": "01JXXXX...",
-
-&#x20; "status": "RELEASED",
-
-&#x20; "released\_at": "2026-10-02T20:00:00-06:00"
-
-}
-
+{ "reservation_id": "01JXXXX...", "status": "RELEASED", "released_at": "..." }
 ```
 
+### 5. GET /reservations/{id}
 
-
-Idempotente: misma idempotency\_key -> mismo resultado.
-
-
-
-\### 5. GET /api/equipo4/integration/reservations/{id}
-
-
-
-Response (200):
-
+Response 200:
 ```json
-
 {
-
-&#x20; "reservation\_id": "01JXXXX...",
-
-&#x20; "status": "RESERVED | CONFIRMED | RELEASED",
-
-&#x20; "items": \[],
-
-&#x20; "expires\_at": "...",
-
-&#x20; "payment": {
-
-&#x20;   "payment\_intent\_id": "PI-...",
-
-&#x20;   "status": "PAID",
-
-&#x20;   "confirmed\_at": "..."
-
-&#x20; }
-
+  "reservation_id": "01JXXXX...",
+  "status": "RESERVED | CONFIRMED | RELEASED",
+  "items": [],
+  "expires_at": "...",
+  "payment": { "payment_intent_id": "PI-...", "status": "PAID", "confirmed_at": "..." }
 }
-
 ```
 
+### 6. POST /returns
 
+Request (cuerpo plano, un solo item):
+```json
+{
+  "order_id": "ORD-2026-ABC",
+  "product_id": "...", "variant_id": null, "location_id": "...",
+  "quantity": 1, "reason": "DEFECT",
+  "idempotency_key": "return-ORD-2026-ABC-1"
+}
+```
 
-\### 6. POST /api/equipo4/integration/returns
+Tambien acepta `items: [...]` (bulk) para multiples productos.
 
+Response 201:
+```json
+{
+  "order_id": "ORD-2026-ABC",
+  "status": "RETURNED",
+  "items": [ { "product_id": "...", "variant_id": null, "location_id": "...", "quantity": 1 } ],
+  "processed_at": "2026-10-02T20:00:00-06:00"
+}
+```
 
+### 7. POST /transfers
 
 Request:
-
 ```json
-
 {
-
-&#x20; "order\_id": "ORD-2026-ABC",
-
-&#x20; "items": \[
-
-&#x20;   {
-
-&#x20;     "product\_id": "6abffeaf31a8cb527504f753",
-
-&#x20;     "variant\_id": null,
-
-&#x20;     "location\_id": "6abffeaf31a8cb527504f754",
-
-&#x20;     "quantity": 1,
-
-&#x20;     "reason": "DEFECT"
-
-&#x20;   }
-
-&#x20; ],
-
-&#x20; "idempotency\_key": "return-ORD-2026-ABC-1"
-
+  "from_location_id": "...", "to_location_id": "...",
+  "items": [{ "product_id": "...", "quantity": 5 }],
+  "idempotency_key": "transfer-XXX"
 }
-
 ```
 
-
-
-Response (200):
-
-```json
-
-{
-
-&#x20; "return\_id": "01JYYYY...",
-
-&#x20; "movements": \[]
-
-}
-
-```
-
-
-
-\### 7. POST /api/equipo4/integration/transfers
-
-
+### 8. POST /adjustments
 
 Request:
-
 ```json
-
 {
-
-&#x20; "from\_location\_id": "...",
-
-&#x20; "to\_location\_id": "...",
-
-&#x20; "items": \[
-
-&#x20;   { "product\_id": "...", "quantity": 5 }
-
-&#x20; ],
-
-&#x20; "idempotency\_key": "transfer-XXX"
-
+  "product_id": "...", "variant_id": null, "location_id": "...",
+  "new_quantity": 42,
+  "reason": "SHRINKAGE",
+  "idempotency_key": "adjust-XXX"
 }
-
 ```
 
+Tambien acepta `items: [...]` (bulk) para multiples productos.
 
-
-\### 8. POST /api/equipo4/integration/adjustments
-
-
-
-Request:
-
-```json
-
-{
-
-&#x20; "location\_id": "...",
-
-&#x20; "items": \[
-
-&#x20;   { "product\_id": "...", "quantity": -3, "reason": "SHRINKAGE" }
-
-&#x20; ],
-
-&#x20; "idempotency\_key": "adjust-XXX"
-
-}
-
-```
-
-
-
-\## Errores comunes
-
-
+## Errores comunes
 
 | Codigo | Cuando |
-
 |---|---|
-
 | 401 | Firma HMAC invalida |
-
-| 403 | business\_id distinto a BUS-CD-SOUV-001 |
-
+| 403 | business_id distinto a BUS-CD-SOUV-001 |
 | 404 | Reserva no encontrada |
-
 | 409 | Estado invalido (ya confirmada, ya liberada, sin stock, sin pago) |
-
 | 422 | Payload invalido |
 
+## Idempotencia
 
+Todos los POST aceptan `idempotency_key`. Eq.4 guarda el resultado en `integration_idempotency` con indice unico `(service, idempotency_key)`. Misma key -> mismo resultado, sin efectos duplicados.
 
-\## Idempotencia
+## Pendiente con Eq.3
 
-
-
-Todos los POST aceptan idempotency\_key. Eq.4 guarda el resultado en integration\_idempotency con indice unico en (service, idempotency\_key). Misma key -> mismo resultado, sin efectos duplicados.
-
-
-
-\## Pendiente con Eq.3
-
-
-
-1\. Confirmar que incluiran payment\_intent\_id en el body del /confirm — y de donde lo obtienen (¿se los pasa Eq.2?)
-
-2\. Documentar que Eq.4 no usa PENDING — la reserva se crea directamente en RESERVED
-
-```
-
+1. Confirmar que incluiran `payment_intent_id` en el body del `/confirm` y de donde lo obtienen (se los pasa Eq.2?)
+2. Documentar que Eq.4 no usa PENDING - la reserva se crea directamente en RESERVED

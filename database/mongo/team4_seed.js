@@ -30,7 +30,7 @@ const products = [
   {
     sku: "PR-001",
     name: "Playera Campus Digital",
-    category: "Ropa",
+    category: "ropa",
     active: true,
     stock_min: 10,
     stock_max: 100,
@@ -39,7 +39,7 @@ const products = [
   {
     sku: "PR-002",
     name: "Taza Campus Digital",
-    category: "Souvenirs",
+    category: "souvenirs",
     active: true,
     stock_min: 8,
     stock_max: 60,
@@ -48,7 +48,7 @@ const products = [
   {
     sku: "PR-003",
     name: "Libreta institucional",
-    category: "Papelería",
+    category: "papeleria",
     active: true,
     stock_min: 15,
     stock_max: 120,

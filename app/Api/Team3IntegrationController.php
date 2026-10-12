@@ -70,6 +70,22 @@ class Team3IntegrationController extends Controller
             'actor_id'          => 'nullable|string|max:100',
         ]);
 
+        // 1. Verificar que la reserva exista ANTES de chequear el pago.
+        // Si no existe -> 404 (contrato E4->E3). Si existe sin pago -> 409.
+        $reservationExists = DB::connection('mongodb')
+            ->getCollection('team3_api_reservations')
+            ->findOne([
+                'reservation_id' => $id,
+                'business_id'    => config('team4.business_id'),
+            ]);
+
+        if (!$reservationExists) {
+            return response()->json([
+                'error'   => 'reservation_not_found',
+                'message' => 'La reserva no existe.',
+            ], 404);
+        }
+
         // Verificación de pago contra payment_events
         $payment = DB::connection('mongodb')
             ->getCollection('payment_events')

@@ -64,10 +64,12 @@ function destroy(row) {
   <Equipo4Layout>
     <div class="max-w-6xl mx-auto px-4 pt-8 pb-16">
       <!-- Hero -->
-      <div class="bg-[#0B3B8C] text-white rounded-xl px-8 py-8 shadow-md">
-        <p class="text-sm text-blue-100">Catálogo</p>
-        <h1 class="text-3xl font-bold mt-1">Categorías de productos</h1>
-        <p class="text-blue-100 mt-1">Clasificación oficial para productos y souvenirs</p>
+      <div class="rounded-2xl bg-white border border-slate-200/70 px-6 py-5 flex items-center gap-4">
+        <span class="grid place-items-center w-12 h-12 rounded-full bg-[#1B3A8F] text-white text-base font-bold shrink-0">C</span>
+        <div>
+          <h1 class="text-2xl font-semibold text-slate-800 tracking-tight">Categorías de productos</h1>
+          <p class="mt-0.5 text-sm text-slate-500">Clasificación oficial para productos y souvenirs</p>
+        </div>
       </div>
 
       <!-- Toolbar -->
@@ -75,13 +77,13 @@ function destroy(row) {
         <input v-model="q" type="text" placeholder="Buscar..."
                class="border border-slate-300 rounded-lg px-3 py-2 text-sm w-64 bg-white" />
         <button @click="openCreate"
-                class="bg-[#0B3B8C] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-[#092f70]">
+                class="bg-[#1B3A8F] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-[#2F6BE8]">
           + Nueva Categoría
         </button>
       </div>
 
       <!-- Tabla -->
-      <div class="bg-white rounded-xl shadow-sm mt-4 overflow-hidden">
+      <div class="bg-white rounded-2xl border border-slate-200/70 mt-4 overflow-hidden">
         <div class="px-6 py-3 border-b">
           <h3 class="text-xs font-bold text-[#0B3B8C] tracking-widest uppercase">Información</h3>
         </div>
